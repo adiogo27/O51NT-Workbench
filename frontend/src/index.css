@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Valores padrão; o ThemeProvider sobrescreve via style no <html> a partir de /api/settings. */
+:root {
+  --color-primary: #0091d5;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #f8fafc;
+  --color-background: #0b1220;
+  --color-foreground: #e2e8f0;
+  --color-accent: #f2e08a;
+  --color-accent-foreground: #111827;
+  --color-muted: color-mix(in srgb, var(--color-foreground) 7%, var(--color-background));
+  --color-muted-foreground: color-mix(in srgb, var(--color-foreground) 70%, var(--color-background));
+  --color-border: color-mix(in srgb, var(--color-foreground) 18%, var(--color-background));
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
+  --radius: 0.5rem;
+  --font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-size-base: 16px;
+}
+
+html {
+  font-size: var(--font-size-base);
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  margin: 0;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.code {
+  @apply font-mono text-sm break-all whitespace-pre-wrap;
+}
+
+.sr-only-focusable:not(:focus) {
+  @apply sr-only;
+}

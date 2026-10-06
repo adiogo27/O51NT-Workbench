@@ -1,0 +1,24 @@
+# SearXNG local (metabusca) usado como fonte primária de busca do O51NT Workbench.
+# Sobe automaticamente pelo ./run.sh (se o Docker estiver disponível). Escuta só em 127.0.0.1.
+services:
+  searxng:
+    image: searxng/searxng:2026.10.4-d48c4b555  # fixada (digest sha256:76b0bf285aca…, 04/10/2026)
+    container_name: o51nt-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data/searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://127.0.0.1:8080/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "1"

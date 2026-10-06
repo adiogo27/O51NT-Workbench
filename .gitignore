@@ -1,0 +1,27 @@
+.venv/
+venv/
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+backend/static/*
+!backend/static/.gitkeep
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.run/
+*.log
+frontend/test-results/
+frontend/playwright-report/
+.claude/settings.local.json
+# gerado por ./iniciar.sh --atalho (caminhos absolutos desta máquina)
+/O51NT Workbench.desktop
+Op. Eleições 2026.pdf
+O51NT.pdf
+# gerados por `npm run guia` (o PDF do guia na raiz é versionado)
+deploy/guia/img/
+deploy/guia/guia.html
+# prompt/rascunho local, não faz parte do projeto
+deepseek_text_*.txt

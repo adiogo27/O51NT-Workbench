@@ -1,0 +1,37 @@
+[project]
+name = "o51nt-workbench"
+version = "1.0.0"
+description = "Workbench OSINT local (single-user) baseado no documento mestre O51NT"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "sqlmodel>=0.0.22",
+  "pydantic-settings>=2.6",
+  "apscheduler>=3.10,<4",
+  "playwright>=1.48",
+  "httpx>=0.27",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.3",
+  "python-multipart>=0.0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-xdist>=3.6",
+  "respx>=0.21",
+  "freezegun>=1.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "unit: testes unitários isolados por módulo",
+  "integration: testes end-to-end via httpx/TestClient",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

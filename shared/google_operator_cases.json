@@ -1,0 +1,78 @@
+{
+  "_descricao": "Casos de paridade: backend (services/operators.py: operadores_google) e frontend (src/lib/queryOperators.ts: detectGoogleOperators) devem produzir exatamente 'esperado' (rótulos na ordem da 1ª ocorrência).",
+  "casos": [
+    { "query": "PRF blitz", "esperado": [] },
+    { "query": "#Eleicoes2026", "esperado": [] },
+    { "query": "PRF -concurso", "esperado": [] },
+    { "query": "eleições or votação", "esperado": [] },
+    { "query": "ORÇAMENTO federal", "esperado": [] },
+    { "query": "https://t.me/joinchat abc", "esperado": [] },
+    { "query": "Termo * Termo2", "esperado": [] },
+    { "query": "\"aspas abertas", "esperado": [] },
+    { "query": "\"Polícia Rodoviária Federal\"", "esperado": ["\"\""] },
+    { "query": "PRF OR \"Polícia Rodoviária\"", "esperado": ["OR", "\"\""] },
+    { "query": "(PRF OR PF)", "esperado": ["()", "OR"] },
+    { "query": "site:uol.com.br \"Termo\"", "esperado": ["site:", "\"\""] },
+    { "query": "PRF -site:gov.br", "esperado": ["-site:"] },
+    { "query": "filetype:pdf termo", "esperado": ["filetype:"] },
+    { "query": "inurl:PRF", "esperado": ["inurl:"] },
+    { "query": "intitle:\"Policia Rodoviária Federal\"", "esperado": ["intitle:"] },
+    { "query": "intext:Termo", "esperado": ["intext:"] },
+    { "query": "PRF before:2026-10-01", "esperado": ["before:"] },
+    { "query": "PRF after:2026-10-01", "esperado": ["after:"] },
+    { "query": "SITE:uol.com.br PRF", "esperado": ["site:"] },
+    {
+      "query": "(site:facebook.com OR site:instagram.com OR site:x.com OR tiktok.com) (PRF OR \"Polícia Rodoviária\") (Eleições) after:2026-10-02",
+      "esperado": ["()", "site:", "OR", "\"\"", "after:"]
+    },
+    { "query": "(site:facebook.com OR site:instagram.com) #NomeHashTag", "esperado": ["()", "site:", "OR"] },
+    { "query": "PRF -is:retweet since:2026-10-04", "esperado": [] },
+    { "query": "PRF since:\"2026-10-04\"", "esperado": [] },
+    { "query": "from:PRFBrasil @PRFBrasil AND blitz", "esperado": [] }
+  ],
+  "_descricao_x": "Paridade dos operadores do X/TweetDeck: operadores_x (backend) e detectXOperators (frontend). 'google' e 'x' são verificados sobre a mesma string.",
+  "casos_x": [
+    { "query": "PRF blitz", "google": [], "x": [] },
+    { "query": "email@dominio.com", "google": [], "x": [] },
+    { "query": "prf and blitz", "google": [], "x": [] },
+    { "query": "\"@PRFBrasil\"", "google": ["\"\""], "x": [] },
+    { "query": "PRF -is:retweet since:2026-10-04", "google": [], "x": ["-is:", "since:"] },
+    { "query": "PRF since:\"2026-10-04\"", "google": [], "x": ["since:"] },
+    { "query": "since: 2026-10-04 PRF", "google": [], "x": ["since:"] },
+    { "query": "is:reply to:PRFBrasil @PRFBrasil #PRF", "google": [], "x": ["is:", "to:", "@"] },
+    { "query": "PRF -from:bot lang:pt min_faves:10", "google": [], "x": ["-from:", "lang:", "min_faves:"] },
+    { "query": "from:PRFBrasil -is:retweet since:2026-10-01 until:2026-10-05 lang:pt", "google": [], "x": ["from:", "-is:", "since:", "until:", "lang:"] },
+    { "query": "site:x.com PRF since:2026-10-04", "google": ["site:"], "x": ["since:"] },
+    {
+      "query": "(PRF OR \"Polícia Rodoviária\") AND (impedindo OR impedimento OR blitz OR eleitores)",
+      "google": ["()", "OR", "\"\""],
+      "x": ["AND"]
+    },
+    {
+      "query": "(rodovia OR rodovias OR \"BR-101\" OR \"BR-116\" OR \"BR-040\" OR \"BR-163\" OR \"BR-277\" OR \"BR-381\" OR \"BR 101\" OR \"BR 116\" OR \"BR 040\") (bloqueio OR bloqueada OR bloqueado OR fechada OR interdição OR manifestação OR protesto OR trancaço OR paralisação OR carreata OR comboio OR blitz OR fiscalização OR congestionamento OR \"trânsito parado\") -is:retweet since:2026-10-04",
+      "google": ["()", "OR", "\"\""],
+      "x": ["-is:", "since:"]
+    },
+    {
+      "query": "(PRF OR \"Polícia Rodoviária Federal\" OR @PRFBrasil OR #PRF) (blitz OR \"blitz ilegal\" OR eleitores OR \"impedindo eleitores\" OR \"voto garantido\" OR truculência OR \"abuso de poder\" OR orgulho OR parabéns OR atuação OR operação) -is:retweet since:2026-10-04",
+      "google": ["()", "OR", "\"\""],
+      "x": ["@", "-is:", "since:"]
+    }
+  ],
+  "convites": {
+    "_descricao": "Queries reais da aba Convites (backend routers/invites.py::montar_queries('eleições')). Todas usam operadores do Google, logo a busca via SearXNG fica desabilitada também nessa aba.",
+    "termo": "eleições",
+    "casos": [
+      {
+        "plataforma": "whatsapp",
+        "query": "(site:facebook.com OR site:instagram.com OR site:x.com OR site:tiktok.com) (chat.whatsapp.com \"eleições\")",
+        "esperado": ["()", "site:", "OR", "\"\""]
+      },
+      {
+        "plataforma": "telegram",
+        "query": "(site:facebook.com OR site:instagram.com OR site:x.com OR site:tiktok.com) (t.me/joinchat \"eleições\")",
+        "esperado": ["()", "site:", "OR", "\"\""]
+      }
+    ]
+  }
+}

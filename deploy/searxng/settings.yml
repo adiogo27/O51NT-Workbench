@@ -1,0 +1,34 @@
+# Template do SearXNG para o O51NT Workbench.
+# O run.sh copia para data/searxng/settings.yml (uma vez) trocando __SECRET__ por um segredo aleatório.
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - bing
+      - startpage
+
+general:
+  instance_name: "O51NT SearXNG (local)"
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  default_lang: "pt-BR"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "__SECRET__"
+  bind_address: "0.0.0.0"
+  port: 8080
+  limiter: false        # instância privada em 127.0.0.1; sem rate-limit de bots
+  image_proxy: false
+  public_instance: false
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 14.0  # < timeout do cliente (15 s)
+
+ui:
+  default_locale: "pt"
