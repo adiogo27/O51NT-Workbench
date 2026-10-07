@@ -69,13 +69,15 @@ test("busca via SearXNG fica desabilitada quando a query usa operadores do Googl
   await expect(page.locator('span[title^="Operadores do Google"]')).toHaveCount(1);
 });
 
-test("aba Convites: busca via SearXNG desabilitada (queries do PDF usam operadores), deeplink disponível", async ({ page }) => {
+test("aba Convites: deeplinks do PDF + busca via SearXNG habilitada com consultas simples (v2)", async ({ page }) => {
   await page.goto("/invites");
   await page.getByLabel("Termo a ser pesquisado").fill("eleições");
   await expect(page.getByRole("button", { name: /^Abrir no Google(?! Notícias)/ }).first()).toBeVisible(); // subaba Deeplinks
   await page.getByRole("tab", { name: "Scraping ético" }).click();
-  await expect(page.getByRole("button", { name: "Buscar convites via SearXNG" })).toBeDisabled();
-  await expect(page.getByText("Operadores do Google não são respeitados por outros motores. Use o deeplink.")).toBeVisible();
+  // v2: ao SearXNG vão consultas geradas pelo backend só com `site:` e aspas (Bing/DDG honram) → botão habilitado
+  await expect(page.getByText(/Consultas que serão enviadas/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Buscar convites via SearXNG" })).toBeEnabled();
+  await expect(page.getByText("Operadores do Google não são respeitados por outros motores. Use o deeplink.")).toHaveCount(0);
 });
 
 test("painel X/TweetDeck: since + -is:retweet entram na query e abrem o deeplink do X", async ({ page, context }) => {

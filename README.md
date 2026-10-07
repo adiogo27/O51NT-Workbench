@@ -54,6 +54,9 @@ O SearXNG fica em `http://127.0.0.1:8080`; outra instância pode ser indicada co
 ### Desenvolvimento
 
 ```bash
+./run.sh --ml                   # instala o perfil "completo" do módulo Convocações (PyTorch CPU + open_clip, ~1 GB)
+./run.sh --sem-ocr              # não instala o OCR (rapidocr); Convocações fica só com léxico + pHash + QR
+./run.sh --reset-searxng        # recria data/searxng/settings.yml a partir do template (motores de imagem), preservando o secret
 ./test.sh                       # TUDO num comando: pytest paralelo + sequencial, Vitest, tsc e Playwright E2E
 ./test.sh --quick               # idem, sem o E2E
 .venv/bin/pytest -n auto        # suíte completa em paralelo (xdist)
@@ -73,12 +76,14 @@ cd frontend && npm run guia     # regenera "Guia O51NT — Op. Eleições 2026.p
 | Monitores + **Radar** | Vários monitores pesquisando **ao mesmo tempo**: o Radar coleta feeds públicos (RSS/Atom de imprensa, Mastodon por hashtag, feed pessoal do Google Alertas) a cada N min e casa cada item novo com a query de **todos** os monitores ativos (mesma sintaxe do Query Builder: AND/OR/parênteses, frases, -negação, #hashtag, site: em modo estrito, after:/since:…). Hits com fonte, data e termos casados; alertas JSONL/webhook; "adicionar ao boletim" em um clique; cron por monitor, timeline e deeplinks como antes | ✓ (inclui X/TikTok/YouTube/Google Notícias) | ✓ feeds (robots.txt, 1 req/3 s, backoff) |
 | Agenda | Compromissos por candidato/dia, tipo, cidade/UF, rodovias federais (normalizadas e cruzadas com a base DNIT), selo de impacto em rodovia, queries de monitoramento (Google `after:` e X `since:`), criação de monitor, export CSV/JSON/ICS | ✓ | — |
 | Boletim | Itens do dia por seção (notícias, fake news, manifestações, imagem institucional…) com fonte e evidência; **perfis vigiados** (handle normalizado, menções no X/Google, monitor); consolida agenda, hashtags, convites e perfis; exporta Markdown/JSON/HTML imprimível **no formato do boletim Op. Eleições 2026** | ✓ | — |
-| Convites | Queries do PDF para `chat.whatsapp.com` e `t.me/joinchat`; tabela com export CSV/JSON | ✓ | via SearXNG local |
+| **Convocações** | Detector de cartazes/postagens que **convocam para atos (em especial não pacíficos)**: solte um print, cole uma URL (imagem, post do Bluesky, `t.me/<canal>/<id>`, página com `og:image`) ou cadastre fontes públicas (busca do Bluesky, canais públicos do Telegram, imagens indexadas via SearXNG, feeds do Radar com mídia). Pipeline em CPU: Pillow → pHash (dedup e **propagação** do mesmo cartaz entre redes) → OpenCV (pré-processamento + **QR code** de grupo) → OCR (rapidocr, modelo latin) → **léxico ponderado** de mobilização (convocação / não pacífico / data / local / distribuição, com regra "convocando × noticiando") → queries dos monitores → CLIP opcional (`./run.sh --ml`) → **score 0-100 + severidade** (baixa/média/alta/crítica) com decomposição visível. Ações: confirmar (vira referência de semelhança), descartar, boletim (seção manifestações), agenda (evento "ato" com data/local extraídos). Alertas na inbox + JSONL/webhook | ✓ | ✓ só fontes públicas, sem login |
+| **Alertas** | Caixa de entrada persistida: convocações detectadas, convites e resultados do Radar, com severidade, marcar lido e atalho para o detalhe; contador no menu | — | — |
+| Convites | Queries do PDF (deeplinks) **e** consultas simples para o SearXNG (só `site:` e aspas, que Bing/DDG honram); extração ampliada (`chat.whatsapp.com`, `whatsapp.com/channel`, `t.me/+`, `joinchat`, canais públicos `t.me/<canal>`) a partir de buscas, cartazes (QR/OCR), posts coletados e texto colado; **Testar** cada link (GET da página pública: nome do grupo, nº de membros no Telegram, ativo/revogado, foto como evidência) e "Testar todos"; reverificação automática opcional; export CSV/JSON | ✓ | via SearXNG local + verificação pública |
 | Hashtags | CRUD, coleta em trends24/OneMillionTweetMap, rastreio periódico, gráfico SVG + série temporal | ✓ | ✓ |
 | Imagens | Upload (vira evidência com SHA-256) → links para Google Lens, TinEye, Yandex, Lenso, Sensity | ✓ | — |
 | Ferramentas | As 16 ferramentas externas do PDF mestre + **Checagem de fatos** (AFP Checamos, Comprova, Lupa, Aos Fatos, g1 Fato ou Fake, Boatos.org, Estadão Verifica, TSE, Google Fact Check Explorer) + **Busca em redes** (X recentes, TikTok, Instagram por hashtag, YouTube, Facebook, Google Notícias); URL pré-preenchida quando a ferramenta aceita | ✓ | — |
 | Evidências | Upload, galeria, verificação de hash, busca por SHA-256 (dedup e prova de primeira coleta), manifesto JSONL, export ZIP (`manifest.json` + `SHA256SUMS`) | — | — |
-| Tema | Cores, raio, fonte, tamanho 12–24 px, presets; persistido em `data/settings.json` | — | — |
+| Tema | Cores, raio, fonte, tamanho 12–24 px, presets; preferências de Radar, **Convocações** (coletor, perfil de IA, limiares, pesos, termos extras) e **Convites** (robots.txt, reverificação); persistido em `data/settings.json` | — | — |
 
 ## Arquitetura
 
@@ -157,6 +162,33 @@ RSS* e cadastre a URL do feed em **Fontes do radar** marcando "ignorar robots.tx
 cobre feeds pessoais; é um feed que o próprio Google entrega a você). Hashtags em qualquer instância Mastodon:
 `https://<instancia>/tags/<hashtag>.rss`. YouTube, Bluesky e gov.br/TSE não oferecem feed acessível (robots ou 404).
 
+## Convocações: como funciona e o que esperar
+
+Caso de uso: um cartaz "REVOLTA NAS RUAS — DIA 11 DE OUTUBRO EM BELO HORIZONTE — ATO NÃO PACÍFICO" circulando como **imagem**.
+
+1. **Entrada**: print solto/colado na aba *Analisar*; URL (imagem direta, post do Bluesky via API pública, `t.me/<canal>/<id>`,
+   página com `og:image`; para o X só o texto via oEmbed público); ou coletores agendados (fontes em *Fontes*).
+2. **Análise** (`backend/app/services/convocacoes/`): `imagem.py` (Pillow, imagehash, OpenCV: normaliza, pHash/dHash, 4 variantes
+   de pré-processamento, QR), `ocr.py` (rapidocr/ONNX, modelo `latin` com acentos; baixado uma vez para `data/models/`),
+   `lexico_mobilizacao.py` (termos ponderados por categoria, extração de data/hora/local, pistas de cobertura jornalística ×
+   imperativo/futuro), `clip.py` (opcional: zero-shot cartaz/meme/foto/notícia + similaridade com confirmados), `score.py`
+   (pesos redistribuídos quando um componente não existe; piso "alta" para não pacífico com léxico forte).
+3. **Saída**: `Deteccao` com evidência (SHA-256 + manifesto), alerta na inbox (`/api/alertas`) e JSONL/webhook quando
+   `score ≥ limiar`; QR/links de grupo vão para *Convites*; "Confirmar" cria a referência usada nas próximas análises.
+
+Expectativas honestas:
+
+- **X, Instagram e Facebook não têm API pública nem página aberta sem login.** O app não faz login nem burla bloqueios.
+  A cobertura automática dessas redes vem só de imagens já indexadas pelo Bing/DDG (fonte `searxng_imagens`), que é baixa e
+  irregular. **O caminho confiável para essas redes é o print (aba Analisar)**, e os deeplinks de busca.
+- Bluesky (API pública), canais públicos do Telegram (`t.me/s/<canal>`) e Mastodon (RSS com mídia) são coletados de verdade.
+- Tudo roda em **CPU**. O perfil **leve** (padrão: OCR + léxico + pHash + QR, ~400 MB de pico) resolve cartazes com texto.
+  O perfil **completo** (CLIP via PyTorch, `./run.sh --ml`) adiciona classificação visual e similaridade semântica, usa
+  ~1 GB de RAM quando carregado e é descarregado após ociosidade (`convocacoesDescarregarMin`).
+- `opencv-python` (não headless) é obrigatório porque o rapidocr depende dele; não instale `opencv-python-headless` junto.
+- Testar um convite é um GET da página pública (como qualquer pré-visualização de link): o app **nunca entra no grupo**,
+  não lista membros (só o agregado exibido na página) e respeita `robots.txt` por padrão, com toggle explícito por link.
+
 ## Limitações aceitas (por design)
 
 O O51NT Workbench **entrega ao analista a query certa e o deeplink certo, e deixa a decisão com ele**. Ele não tenta
@@ -168,11 +200,12 @@ ser um crawler furtivo. Os itens abaixo são fronteiras deliberadas do produto, 
 - **SearXNG** consulta os buscadores como cliente de busca: **não aplica o robots.txt** deles e **não respeita
   operadores do Google** (`site:`, `inurl:`, `before:`, aspas, `OR`…). Por isso o Query Builder desabilita "Buscar via
   SearXNG" quando a query contém qualquer um desses operadores (`frontend/src/lib/queryOperators.ts`, espelho de
-  `operadores_google` no backend, com casos compartilhados em `shared/google_operator_cases.json`). A **mesma regra**
-  vale para a aba **Convites**: como as queries de convite do PDF sempre usam `site:`, `OR`, aspas e parênteses, o botão
-  fica desabilitado ali, com o mesmo aviso e o deeplink como alternativa (componente único `SearxngSearchButton`).
-- **Busca de convites via SearXNG** funciona tecnicamente, mas os motores bloqueiam ou ignoram as queries do PDF.
-  **O deeplink é o caminho confiável.**
+  `operadores_google` no backend, com casos compartilhados em `shared/google_operator_cases.json`). Na aba **Convites**
+  as queries do PDF (com `OR` e parênteses) continuam só como deeplink; ao SearXNG vão **consultas simples** geradas pelo
+  backend (`"chat.whatsapp.com" termo`, `site:x.com "t.me" termo`…), que Bing/DDG honram — por isso o botão fica
+  habilitado ali (`SearxngSearchButton permitirOperadores`).
+- **Busca de convites via SearXNG** depende dos motores responderem; no teste de 05/10 eles bloquearam. O deeplink segue
+  sendo a alternativa; os convites também chegam por cartazes (QR/OCR), posts do Bluesky/Telegram e texto colado.
 - **OneMillionTweetMap: encerrado.** O HTML público não expõe hashtags (os tweets carregam dinamicamente no mapa).
   A fonte está desabilitada na interface.
 - **DuckDuckGo:** um timeout de rede ao buscar o robots.txt é tratado como "negado" (conservador). Um relatório antigo

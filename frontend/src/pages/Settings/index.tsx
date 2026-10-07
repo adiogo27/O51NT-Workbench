@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { RotateCcw, Save } from "lucide-react";
 import * as React from "react";
 import { ErrorText } from "@/components/shared";
-import { Alert, Badge, Button, Card, CardTitle, Field, Input, PageHeader, Select } from "@/components/ui";
-import { api, type AppSettings } from "@/lib/api";
+import { Alert, Badge, Button, Card, CardTitle, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { api, type AppSettings, type Preferencias } from "@/lib/api";
 import { applyTheme, DEFAULT_SETTINGS, FONTES, useSettingsStore } from "@/theme/ThemeProvider";
 
 const CORES: { k: keyof AppSettings["tema"]; l: string }[] = [
@@ -34,6 +34,7 @@ export default function SettingsPage() {
   React.useEffect(() => () => applyTheme(useSettingsStore.getState().settings), []);
 
   const setTema = (k: keyof AppSettings["tema"], v: string | number) => setDraft({ ...draft, tema: { ...draft.tema, [k]: v } });
+  const setPref = <K extends keyof Preferencias>(k: K, v: Preferencias[K]) => setDraft({ ...draft, preferencias: { ...draft.preferencias, [k]: v } });
   const salvar = async () => {
     try {
       setErro(null);
@@ -116,6 +117,55 @@ export default function SettingsPage() {
                   onChange={(e) => setDraft({ ...draft, preferencias: { ...draft.preferencias, historicoMaxEntradas: Number(e.target.value) } })} />
               </Field>
             </div>
+          </div>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardTitle>Convocações (detector de cartazes)</CardTitle>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Coletor agendado" htmlFor="conv-ativo" hint="Bluesky, canais do Telegram, SearXNG imagens e feeds com mídia">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="conv-ativo" type="checkbox" checked={draft.preferencias.convocacoesAtivo} onChange={(e) => setPref("convocacoesAtivo", e.target.checked)} /> ligado</label>
+            </Field>
+            <Field label="Intervalo do coletor (min)" htmlFor="conv-int"><Input id="conv-int" type="number" min={5} max={1440} value={draft.preferencias.convocacoesIntervaloMin} onChange={(e) => setPref("convocacoesIntervaloMin", Number(e.target.value))} /></Field>
+            <Field label="Perfil de IA" htmlFor="conv-perfil" hint="completo = CLIP (PyTorch); requer ./run.sh --ml e ~1 GB de RAM">
+              <Select id="conv-perfil" value={draft.preferencias.convocacoesPerfilML} onChange={(e) => setPref("convocacoesPerfilML", e.target.value as "leve" | "completo")}><option value="leve">leve (OCR + léxico + QR)</option><option value="completo">completo (+ CLIP)</option></Select>
+            </Field>
+            <Field label="Máx. imagens por ciclo" htmlFor="conv-max"><Input id="conv-max" type="number" min={1} max={500} value={draft.preferencias.convocacoesMaxImagensCiclo} onChange={(e) => setPref("convocacoesMaxImagensCiclo", Number(e.target.value))} /></Field>
+            <Field label="Limiar de alerta (score)" htmlFor="conv-la"><Input id="conv-la" type="number" min={1} max={100} value={draft.preferencias.convocacoesLimiarAlerta} onChange={(e) => setPref("convocacoesLimiarAlerta", Number(e.target.value))} /></Field>
+            <Field label="Limiar crítico (score)" htmlFor="conv-lc"><Input id="conv-lc" type="number" min={1} max={100} value={draft.preferencias.convocacoesLimiarCritico} onChange={(e) => setPref("convocacoesLimiarCritico", Number(e.target.value))} /></Field>
+            <Field label="Canal de alerta" htmlFor="conv-canal">
+              <Select id="conv-canal" value={draft.preferencias.convocacoesCanalAlerta} onChange={(e) => setPref("convocacoesCanalAlerta", e.target.value as "jsonl" | "webhook" | "nenhum")}><option value="jsonl">JSONL (data/alerts)</option><option value="webhook">webhook</option><option value="nenhum">só inbox</option></Select>
+            </Field>
+            <Field label="Webhook URL" htmlFor="conv-wh"><Input id="conv-wh" value={draft.preferencias.convocacoesWebhookUrl ?? ""} onChange={(e) => setPref("convocacoesWebhookUrl", e.target.value || null)} placeholder="https://…" /></Field>
+            <Field label="Peso léxico" htmlFor="p-lex"><Input id="p-lex" type="number" step={0.05} min={0} max={1} value={draft.preferencias.convocacoesPesoLexico} onChange={(e) => setPref("convocacoesPesoLexico", Number(e.target.value))} /></Field>
+            <Field label="Peso visual (CLIP)" htmlFor="p-vis"><Input id="p-vis" type="number" step={0.05} min={0} max={1} value={draft.preferencias.convocacoesPesoVisual} onChange={(e) => setPref("convocacoesPesoVisual", Number(e.target.value))} /></Field>
+            <Field label="Peso referência" htmlFor="p-ref"><Input id="p-ref" type="number" step={0.05} min={0} max={1} value={draft.preferencias.convocacoesPesoReferencia} onChange={(e) => setPref("convocacoesPesoReferencia", Number(e.target.value))} /></Field>
+            <Field label="Peso monitores" htmlFor="p-mon"><Input id="p-mon" type="number" step={0.05} min={0} max={1} value={draft.preferencias.convocacoesPesoMonitor} onChange={(e) => setPref("convocacoesPesoMonitor", Number(e.target.value))} /></Field>
+            <Field label="Bônus QR/link de grupo" htmlFor="p-bon"><Input id="p-bon" type="number" min={0} max={50} value={draft.preferencias.convocacoesBonusDistribuicao} onChange={(e) => setPref("convocacoesBonusDistribuicao", Number(e.target.value))} /></Field>
+            <Field label="Descarregar modelos após (min ocioso)" htmlFor="conv-desc"><Input id="conv-desc" type="number" min={1} max={240} value={draft.preferencias.convocacoesDescarregarMin} onChange={(e) => setPref("convocacoesDescarregarMin", Number(e.target.value))} /></Field>
+            <Field label="Analisar imagens dos feeds do Radar" htmlFor="conv-feeds">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="conv-feeds" type="checkbox" checked={draft.preferencias.convocacoesAnalisarFeeds} onChange={(e) => setPref("convocacoesAnalisarFeeds", e.target.checked)} /> sim</label>
+            </Field>
+            <Field label="Reter descartadas (dias, 0 = sempre)" htmlFor="conv-ret"><Input id="conv-ret" type="number" min={0} max={36500} value={draft.preferencias.convocacoesRetencaoDias} onChange={(e) => setPref("convocacoesRetencaoDias", Number(e.target.value))} /></Field>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="Termos extras (peso 2, categoria convocação)" htmlFor="conv-extra" hint="um por linha; sem acento é opcional (comparação ignora acentos)">
+              <Textarea id="conv-extra" rows={3} value={draft.preferencias.convocacoesTermosExtra.join("\n")} onChange={(e) => setPref("convocacoesTermosExtra", e.target.value.split("\n").map((x) => x.trim()).filter(Boolean))} />
+            </Field>
+            <Field label="Termos a ignorar" htmlFor="conv-excl" hint="ex.: 'greve' se o contexto gerar falsos positivos">
+              <Textarea id="conv-excl" rows={3} value={draft.preferencias.convocacoesTermosExcluir.join("\n")} onChange={(e) => setPref("convocacoesTermosExcluir", e.target.value.split("\n").map((x) => x.trim()).filter(Boolean))} />
+            </Field>
+          </div>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardTitle>Convites (verificação de links de grupo)</CardTitle>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Respeitar robots.txt ao testar" htmlFor="inv-robots" hint="t.me / whatsapp.com; pode ser ignorado por link, com aviso">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="inv-robots" type="checkbox" checked={draft.preferencias.convitesRespeitarRobots} onChange={(e) => setPref("convitesRespeitarRobots", e.target.checked)} /> sim</label>
+            </Field>
+            <Field label="Reverificação automática" htmlFor="inv-auto" hint="até 20 links por rodada, mais antigos primeiro">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="inv-auto" type="checkbox" checked={draft.preferencias.convitesVerificarAuto} onChange={(e) => setPref("convitesVerificarAuto", e.target.checked)} /> ligada</label>
+            </Field>
+            <Field label="Intervalo (horas)" htmlFor="inv-int"><Input id="inv-int" type="number" min={1} max={720} value={draft.preferencias.convitesVerificarIntervaloHoras} onChange={(e) => setPref("convitesVerificarIntervaloHoras", Number(e.target.value))} /></Field>
           </div>
         </Card>
         <Card className="lg:col-span-2">

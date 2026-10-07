@@ -190,13 +190,37 @@ export interface MonitorRun {
 
 export interface Invite {
   id: number;
-  plataforma: "whatsapp" | "telegram";
+  plataforma: "whatsapp" | "whatsapp_canal" | "telegram" | "telegram_publico";
   url: string;
   termo: string;
   origem: string;
   first_seen: string;
   last_seen: string;
   hash_conteudo: string;
+  // v2 — contexto e verificação da página pública do convite
+  fonte_url: string;
+  status: "ativo" | "revogado" | "desconhecido";
+  nome_grupo: string | null;
+  membros: number | null;
+  descricao: string | null;
+  verificado_em: string | null;
+  evidencia_id: number | null;
+  score_relevancia: number;
+  http_status: number;
+  erro_verificacao: string;
+}
+
+export interface InviteVerificacao {
+  status: "ativo" | "revogado" | "desconhecido";
+  nome_grupo: string | null;
+  membros: number | null;
+  descricao: string | null;
+  foto_url: string | null;
+  http_status: number;
+  erro: string | null;
+  robots_permite: boolean;
+  verificado_em: string;
+  tipo: string;
 }
 
 export interface Ferramenta {
@@ -247,7 +271,229 @@ export interface Snapshot {
 export interface AppSettings {
   tema: { primary: string; secondary: string; background: string; foreground: string; accent: string; radius: number };
   tipografia: { fontFamily: string; fontSizeBase: number };
-  preferencias: { navegadorPadrao: string; historicoRetencaoDias: number; historicoMaxEntradas: number; radarAtivo: boolean; radarIntervaloMin: number };
+  preferencias: Preferencias;
+}
+
+export interface Preferencias {
+  navegadorPadrao: string;
+  historicoRetencaoDias: number;
+  historicoMaxEntradas: number;
+  radarAtivo: boolean;
+  radarIntervaloMin: number;
+  // Convocações
+  convocacoesAtivo: boolean;
+  convocacoesIntervaloMin: number;
+  convocacoesPerfilML: "leve" | "completo";
+  convocacoesLimiarAlerta: number;
+  convocacoesLimiarCritico: number;
+  convocacoesPesoLexico: number;
+  convocacoesPesoVisual: number;
+  convocacoesPesoReferencia: number;
+  convocacoesPesoMonitor: number;
+  convocacoesBonusDistribuicao: number;
+  convocacoesTermosExtra: string[];
+  convocacoesTermosExcluir: string[];
+  convocacoesMaxImagensCiclo: number;
+  convocacoesDescarregarMin: number;
+  convocacoesAnalisarFeeds: boolean;
+  convocacoesCanalAlerta: "jsonl" | "webhook" | "nenhum";
+  convocacoesWebhookUrl: string | null;
+  convocacoesRetencaoDias: number;
+  // Convites
+  convitesRespeitarRobots: boolean;
+  convitesVerificarAuto: boolean;
+  convitesVerificarIntervaloHoras: number;
+}
+
+// ------------------------------------------------------------------ Convocações / Alertas
+export type Severidade = "baixa" | "media" | "alta" | "critica";
+
+export interface Deteccao {
+  id: number;
+  origem: string;
+  plataforma: string;
+  post_url: string;
+  imagem_url: string;
+  autor: string;
+  publicado_em: string | null;
+  evidencia_id: number | null;
+  sha256: string;
+  phash: string;
+  texto_post: string;
+  texto_ocr: string;
+  ocr_confianca: number;
+  ocr_modelo: string;
+  qr: string[];
+  convites: { plataforma: string; url: string }[];
+  termos_lexico: Record<string, string[]>;
+  termos_monitor: string;
+  monitor_ids: string;
+  tempo: "futuro" | "passado" | "indefinido";
+  data_evento: string | null;
+  hora_evento: string | null;
+  local_evento: string;
+  noticiando: boolean;
+  nao_pacifico: boolean;
+  score: number;
+  score_detalhe: Record<string, unknown>;
+  severidade: Severidade;
+  estado: "nova" | "confirmada" | "descartada";
+  referencia_id: number | null;
+  alerta_id: number | null;
+  boletim_item_id: number | null;
+  agenda_evento_id: number | null;
+  ocorrencias: number;
+  notas: string;
+  criado_em: string;
+}
+
+export interface AnaliseResultado {
+  score: number;
+  severidade: Severidade;
+  decomposicao: { componentes: Record<string, { valor: number; peso: number; parcela: number }>; bonus_distribuicao: number; score: number };
+  lexico: {
+    pontos: number;
+    cobertura: number;
+    termos: Record<string, string[]>;
+    tempo: string;
+    data_evento: string | null;
+    hora_evento: string | null;
+    local: string | null;
+    noticiando: boolean;
+    pistas_noticiando: string[];
+    pistas_convocando: string[];
+    nao_pacifico: boolean;
+    score: number;
+  };
+  ocr: { texto: string; linhas: string[]; confianca: number; variante: number; ms: number; modelo: string } | null;
+  qr: string[];
+  convites: { plataforma: string; url: string }[];
+  visual: Record<string, number> | null;
+  referencia: { id: number | null; score: number; motivo: string } | null;
+  monitores: { id: number; nome: string; termos: string[] }[];
+  imagem: { largura: number; altura: number; sha256: string; phash: string; mime: string } | null;
+  ms: number;
+  capacidades: { ocr: boolean; clip: boolean; ocr_modelo: string | null };
+  passos?: string[];
+}
+
+export interface AnaliseOut {
+  deteccao: Deteccao | null;
+  nova: boolean;
+  duplicada: boolean;
+  salva: boolean;
+  score: number;
+  severidade: Severidade;
+  alerta_id: number | null;
+  ocorrencia_id: number | null;
+  resultado: AnaliseResultado;
+}
+
+export interface Ocorrencia {
+  id: number;
+  deteccao_id: number;
+  post_url: string;
+  imagem_url: string;
+  plataforma: string;
+  autor: string;
+  publicado_em: string | null;
+  visto_em: string;
+  variante: boolean;
+  fonte_id: number | null;
+}
+
+export interface ReferenciaCartaz {
+  id: number;
+  deteccao_id: number | null;
+  evidencia_id: number | null;
+  phash: string;
+  tem_embedding: boolean;
+  modelo_embedding: string;
+  rotulo: string;
+  notas: string;
+  criado_em: string;
+}
+
+export type TipoFonteConvocacao = "bluesky_busca" | "telegram_canal" | "searxng_imagens" | "feed_midia";
+
+export interface FonteConvocacao {
+  id: number;
+  nome: string;
+  tipo: TipoFonteConvocacao;
+  parametro: string;
+  rede_alvo: string;
+  ativa: boolean;
+  respeitar_robots: boolean;
+  ultima_coleta: string | null;
+  ultimo_status: number;
+  ultimo_erro: string;
+  itens_total: number;
+  novos_ultima: number;
+  criado_em: string;
+}
+
+export interface FonteConvocacaoTeste {
+  ok: boolean;
+  status: number;
+  erro: string | null;
+  robots_permite: boolean;
+  candidatos: number;
+  com_imagem: number;
+  amostra: { post_url: string; autor: string; texto: string; imagens: string[]; publicado_em: string | null }[];
+}
+
+export interface Capacidades {
+  perfil: "leve" | "completo";
+  ocr_instalado: boolean;
+  clip_instalado: boolean;
+  qr: boolean;
+  lexico: boolean;
+  carregados: string[];
+  ocr_modelo: string | null;
+  clip_modelo: string | null;
+  ultimo_uso: string | null;
+  analises: number;
+  rss_mb: number;
+  threads: number;
+  dir_modelos: string;
+}
+
+export interface ConvocacoesStatus {
+  ativo: boolean;
+  intervalo_min: number;
+  agendado: boolean;
+  proximo_ciclo: string | null;
+  ultimo_ciclo: { executado_em: string; duracao_s: number; analisados: number; novos: number; ocorrencias: number; alertas: number; fontes: Record<string, unknown>[] } | null;
+  fontes_ativas: number;
+  fontes_total: number;
+  deteccoes_total: number;
+  novas: number;
+  por_severidade: Record<Severidade, number>;
+  referencias: number;
+  capacidades: Capacidades;
+}
+
+export interface Alerta {
+  id: number;
+  tipo: "convocacao" | "convite" | "radar";
+  severidade: Severidade;
+  titulo: string;
+  resumo: string;
+  url: string;
+  deteccao_id: number | null;
+  invite_id: number | null;
+  monitor_id: number | null;
+  lido: boolean;
+  criado_em: string;
+  canal_log: string;
+}
+
+export interface AlertasContagem {
+  total: number;
+  criticos: number;
+  convocacao: number;
+  convite: number;
+  radar: number;
 }
 
 export interface AgendaEvento {
@@ -346,6 +592,7 @@ export interface ScrapeExecucao {
   coletado_em: string;
   resultados?: { titulo: string; url: string }[];
   plataforma?: string;
+  query?: string;
   encontrados?: number;
   resultados_busca?: number;
   engines_sem_resposta?: unknown[];

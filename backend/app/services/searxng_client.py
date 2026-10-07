@@ -25,6 +25,7 @@ from app.config import get_settings
 logger = logging.getLogger("o51nt.searxng")
 
 ENGINES_PADRAO: tuple[str, ...] = ("duckduckgo", "bing", "startpage")
+ENGINES_IMAGENS: tuple[str, ...] = ("bing images", "duckduckgo images")  # categoria images (habilitar em data/searxng/settings.yml)
 
 
 class SearxngIndisponivel(RuntimeError):
@@ -81,7 +82,7 @@ class SearxngClient:
             return False
 
     async def buscar(
-        self, query: str, engines: list[str] | tuple[str, ...] = ENGINES_PADRAO, idioma: str = "pt-BR", pagina: int = 1
+        self, query: str, engines: list[str] | tuple[str, ...] = ENGINES_PADRAO, idioma: str = "pt-BR", pagina: int = 1, categorias: str | None = None
     ) -> ResultadoBusca:
         params = {
             "q": query,
@@ -91,6 +92,8 @@ class SearxngClient:
             "pageno": str(pagina),
             "safesearch": "0",
         }
+        if categorias:
+            params["categories"] = categorias
         origem = str(self._client.build_request("GET", "/search", params=params).url)
         ultimo_erro = ""
         for tentativa in range(self.retries + 1):
@@ -127,6 +130,10 @@ class SearxngClient:
                     "content": x.get("content", ""),
                     "title": x.get("title", ""),
                     "engines": x.get("engines") or [x.get("engine")],
+                    # categoria images: mantidos para o módulo Convocações
+                    "img_src": x.get("img_src"),
+                    "thumbnail_src": x.get("thumbnail_src"),
+                    "publishedDate": x.get("publishedDate"),
                 }
                 for x in dados.get("results", [])
                 if x.get("url")

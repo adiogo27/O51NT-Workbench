@@ -66,6 +66,34 @@ def _migrar(engine: Engine) -> None:
         colunas_monitor = {row[1] for row in conn.execute(text("PRAGMA table_info(monitor)"))}
         if "radar_modo" not in colunas_monitor:
             conn.execute(text("ALTER TABLE monitor ADD COLUMN radar_modo VARCHAR NOT NULL DEFAULT 'termos'"))
+        # Convites v2 + mídia nos itens de feed (módulo Convocações)
+        _add_colunas(
+            conn,
+            "invite",
+            {
+                "fonte_url": "VARCHAR NOT NULL DEFAULT ''",
+                "status": "VARCHAR NOT NULL DEFAULT 'desconhecido'",
+                "nome_grupo": "VARCHAR",
+                "membros": "INTEGER",
+                "descricao": "VARCHAR",
+                "verificado_em": "DATETIME",
+                "evidencia_id": "INTEGER",
+                "score_relevancia": "INTEGER NOT NULL DEFAULT 0",
+                "http_status": "INTEGER NOT NULL DEFAULT 0",
+                "erro_verificacao": "VARCHAR NOT NULL DEFAULT ''",
+            },
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_invite_status ON invite (status)"))
+        _add_colunas(conn, "fonte_item", {"midias": "VARCHAR NOT NULL DEFAULT '[]'"})
+
+
+def _add_colunas(conn, tabela: str, colunas: dict[str, str]) -> None:  # noqa: ANN001
+    from sqlalchemy import text
+
+    existentes = {row[1] for row in conn.execute(text(f"PRAGMA table_info({tabela})"))}
+    for nome, ddl in colunas.items():
+        if nome not in existentes:
+            conn.execute(text(f"ALTER TABLE {tabela} ADD COLUMN {nome} {ddl}"))
 
 
 def get_session() -> Iterator[Session]:

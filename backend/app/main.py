@@ -15,7 +15,7 @@ from app import __version__
 from app.config import get_settings
 from app.db import get_engine, init_db
 from app.logging_config import configure_logging
-from app.routers import agenda, boletim, evidence, hashtags, images, invites, monitors, perfis, query_builder, radar, scraping, settings, tools
+from app.routers import agenda, alertas, boletim, convocacoes, evidence, hashtags, images, invites, monitors, perfis, query_builder, radar, scraping, settings, tools
 from app.seed import seed_fontes, seed_templates
 from app.services import radar as radar_svc  # alias: `radar` já é o router importado acima
 from app.services import retention, scheduler
@@ -48,7 +48,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="O51NT Workbench", version=__version__, lifespan=lifespan)
-    for r in (query_builder, scraping, monitors, invites, tools, evidence, hashtags, images, settings, agenda, perfis, boletim, radar):
+    for r in (query_builder, scraping, monitors, invites, tools, evidence, hashtags, images, settings, agenda, perfis, boletim, radar, convocacoes, alertas):
         app.include_router(r.router)
 
     @app.get("/api/health", tags=["system"])
@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
             "status": "ok" if db_ok else "degradado",
             "db": db_ok,
             "scheduler": scheduler.get_scheduler() is not None,
+            "ml": _ml_resumo(),
             "uptime_s": int((datetime.now(UTC) - INICIADO_EM).total_seconds()),
         }
 
@@ -72,6 +73,16 @@ def create_app() -> FastAPI:
 
     _montar_frontend(app)
     return app
+
+
+def _ml_resumo() -> dict:
+    try:
+        from app.services.convocacoes.analisador import get_analisador
+
+        c = get_analisador().capacidades()
+        return {"perfil": c["perfil"], "ocr": c["ocr_instalado"], "clip": c["clip_instalado"], "carregados": c["carregados"]}
+    except Exception:  # nunca derruba o health
+        return {"perfil": "indisponivel"}
 
 
 def _montar_frontend(app: FastAPI) -> None:

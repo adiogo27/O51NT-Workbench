@@ -41,7 +41,7 @@ preferencia_navegador() {
 }
 
 # Só executa nomes de navegadores conhecidos (mesma lista do run.sh), nunca um comando arbitrário do JSON.
-NAVEGADORES=(firefox firefox-esr chromium chromium-browser google-chrome google-chrome-stable brave-browser brave microsoft-edge opera vivaldi)
+NAVEGADORES=(firefox firefox-esr chromium chromium-browser google-chrome google-chrome-stable brave-browser brave microsoft-edge opera-gx vivaldi)
 
 navegador_conhecido() {
   local b
@@ -55,7 +55,7 @@ abrir_aba() {
   if [[ -n "$pref" ]] && navegador_conhecido "$pref" && command -v "$pref" >/dev/null 2>&1; then
     case "$pref" in
       firefox*) cmd=("$pref" --new-tab "$URL") ;;
-      *) cmd=("$pref" "$URL") ;;  # Chrome/Chromium/Brave/Edge/Opera/Vivaldi abrem aba na janela existente
+      *) cmd=("$pref" "$URL") ;;  # Chrome/Chromium/Brave/Edge/Opera/Vivaldi/Opera-GX abrem aba na janela existente
     esac
   elif command -v xdg-open >/dev/null 2>&1; then
     cmd=(xdg-open "$URL")  # navegador padrão do sistema

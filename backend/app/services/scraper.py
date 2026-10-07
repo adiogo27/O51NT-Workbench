@@ -23,9 +23,9 @@ import shutil
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from html import unescape
+
 from typing import Protocol
-from urllib.parse import unquote, urlsplit
+from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -52,12 +52,33 @@ class ResultadoScrape:
         return self.erro is None and 200 <= self.status < 300
 
 
+@dataclass(slots=True)
+class ResultadoBytes:
+    """Resultado binário (imagens, fotos de grupo). Mesmas garantias de ResultadoScrape: URL, horário, SHA-256."""
+
+    url: str
+    status: int
+    conteudo: bytes = b""
+    mime: str = ""
+    sha256: str = ""
+    coletado_em: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    erro: str | None = None
+    via: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.erro is None and 200 <= self.status < 300 and bool(self.conteudo)
+
+
 class Fetcher(Protocol):
     nome: str
 
     async def get(self, url: str, timeout: float) -> tuple[int, str]: ...
 
     async def close(self) -> None: ...
+
+    # opcional (detectado por hasattr): download binário em streaming com limite de bytes
+    # async def get_bytes(self, url: str, timeout: float, limite: int) -> tuple[int, bytes, str]: ...
 
 
 class HttpxFetcher:
@@ -74,6 +95,22 @@ class HttpxFetcher:
     async def get(self, url: str, timeout: float) -> tuple[int, str]:
         r = await self._client.get(url, timeout=timeout)
         return r.status_code, r.text
+
+    async def get_bytes(self, url: str, timeout: float, limite: int) -> tuple[int, bytes, str]:
+        """Streaming com limite: aborta assim que exceder `limite` (ValueError)."""
+        async with self._client.stream("GET", url, timeout=timeout) as r:
+            mime = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+            tam = int(r.headers.get("content-length") or 0)
+            if tam > limite:
+                raise ValueError(f"conteúdo excede o limite de {limite // (1024 * 1024)} MB")
+            partes: list[bytes] = []
+            total = 0
+            async for bloco in r.aiter_bytes():
+                total += len(bloco)
+                if total > limite:
+                    raise ValueError(f"conteúdo excede o limite de {limite // (1024 * 1024)} MB")
+                partes.append(bloco)
+            return r.status_code, b"".join(partes), mime
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -291,8 +328,10 @@ class RateLimiter:
 class _Job:
     url: str
     usar_js: bool
-    futuro: asyncio.Future[ResultadoScrape]
+    futuro: asyncio.Future
     respeitar_robots: bool = True
+    binario: bool = False
+    limite_bytes: int = 0
 
 
 class EthicalScraper:
@@ -344,14 +383,29 @@ class EthicalScraper:
         await self._fila.put(_Job(url, usar_js, futuro, respeitar_robots))
         return await futuro
 
+    async def buscar_bytes(self, url: str, respeitar_robots: bool = True, limite_bytes: int | None = None) -> ResultadoBytes:
+        """Download binário (imagem/foto) pela mesma fila: backoff → robots → rate limit → fetch → sha256."""
+        await self.start()
+        assert self._fila is not None
+        limite = limite_bytes or get_settings().max_download_mb * 1024 * 1024
+        futuro: asyncio.Future[ResultadoBytes] = asyncio.get_running_loop().create_future()
+        await self._fila.put(_Job(url, False, futuro, respeitar_robots, binario=True, limite_bytes=limite))
+        return await futuro
+
     async def _worker(self) -> None:
         assert self._fila is not None
         while True:
             job = await self._fila.get()
             try:
-                res = await self._processar(job.url, job.usar_js, job.respeitar_robots)
+                if job.binario:
+                    res = await self._processar_bytes(job.url, job.respeitar_robots, job.limite_bytes)
+                else:
+                    res = await self._processar(job.url, job.usar_js, job.respeitar_robots)
             except Exception as exc:  # nunca derruba o worker
-                res = ResultadoScrape(url=job.url, status=0, erro=f"falha inesperada: {exc}")
+                if job.binario:
+                    res = ResultadoBytes(url=job.url, status=0, erro=f"falha inesperada: {exc}")
+                else:
+                    res = ResultadoScrape(url=job.url, status=0, erro=f"falha inesperada: {exc}")
             if not job.futuro.done():
                 job.futuro.set_result(res)
             self._fila.task_done()
@@ -392,9 +446,48 @@ class EthicalScraper:
             return self._log(res)
         return self._log(ResultadoScrape(url=url, status=0, erro=ultimo_erro or "falha", via=fetcher.nome))
 
+    async def _processar_bytes(self, url: str, respeitar_robots: bool, limite: int) -> ResultadoBytes:
+        dominio = urlsplit(url).netloc.lower()
+        if ate := self.backoff.bloqueado_ate(dominio):
+            return self._log(ResultadoBytes(url=url, status=0, erro=f"domínio em backoff até {ate.isoformat()}"))
+        if respeitar_robots and not await self.robots.permitido(url):
+            return self._log(ResultadoBytes(url=url, status=0, erro="bloqueado por robots.txt"))
+        fetcher = self._estatico
+        ultimo_erro = ""
+        for tentativa in range(self.retries + 1):
+            await self.rate.aguardar(dominio)
+            try:
+                if hasattr(fetcher, "get_bytes"):
+                    status, conteudo, mime = await asyncio.wait_for(fetcher.get_bytes(url, self.timeout, limite), self.timeout + 5)
+                else:  # fetcher só de texto: usa o texto como bytes
+                    status, texto = await asyncio.wait_for(fetcher.get(url, self.timeout), self.timeout + 5)
+                    conteudo, mime = texto.encode("utf-8", "replace"), "text/html"
+            except ValueError as exc:  # limite de tamanho: não adianta repetir
+                return self._log(ResultadoBytes(url=url, status=0, erro=str(exc), via=fetcher.nome))
+            except Exception as exc:
+                ultimo_erro = f"{type(exc).__name__}: {exc}"
+                continue
+            if status in (403, 429):
+                ate = self.backoff.registrar(dominio, status)
+                return self._log(ResultadoBytes(url=url, status=status, erro=f"HTTP {status} — domínio em backoff até {ate.isoformat()}", via=fetcher.nome))
+            if status >= 500 and tentativa < self.retries:
+                ultimo_erro = f"HTTP {status}"
+                continue
+            if 200 <= status < 300:
+                self.backoff.limpar(dominio)
+            return self._log(
+                ResultadoBytes(
+                    url=url, status=status, conteudo=conteudo if 200 <= status < 300 else b"", mime=mime,
+                    sha256=hashlib.sha256(conteudo).hexdigest(), erro=None if 200 <= status < 300 else f"HTTP {status}", via=fetcher.nome,
+                )
+            )
+        return self._log(ResultadoBytes(url=url, status=0, erro=ultimo_erro or "falha", via=fetcher.nome))
+
     @staticmethod
-    def _log(res: ResultadoScrape) -> ResultadoScrape:
+    def _log(res):  # noqa: ANN001, ANN205
         dados: dict[str, object] = {"url": res.url, "status": res.status, "via": res.via}
+        if isinstance(res, ResultadoBytes):
+            dados["bytes"] = len(res.conteudo)
         if res.sha256:
             dados["sha256"] = res.sha256
         if res.erro:  # chave só existe quando há erro (mesma regra do searxng_client)
@@ -405,33 +498,14 @@ class EthicalScraper:
 
 # ------------------------------------------------------------------ extratores
 
-_WHATSAPP_RE = re.compile(r"https?://chat\.whatsapp\.com/(?:invite/)?([A-Za-z0-9]{10,40})")
-_TELEGRAM_RE = re.compile(r"https?://(?:t|telegram)\.me/(?:joinchat/([A-Za-z0-9_-]{8,64})|\+([A-Za-z0-9_-]{8,64}))")
-# variantes sem esquema, comuns em snippets ("chat.whatsapp.com/Abc...")
-_SEM_ESQUEMA_RE = re.compile(r"(?<![/\w.])((?:chat\.whatsapp\.com|t\.me|telegram\.me)/)")
 _HASHTAG_RE = re.compile(r"(?<![\w&/])#([\wÀ-ÿ]{2,100})")
 
 
-def _normalizar_html(html: str) -> str:
-    # buscadores encapsulam links (ex.: DuckDuckGo uddg=...); desfaz percent-encoding e entidades
-    return _SEM_ESQUEMA_RE.sub(r"https://\1", unquote(unescape(html)))
-
-
 def extrair_convites(html: str) -> list[tuple[str, str]]:
-    """Retorna [(plataforma, url_canônica)] sem duplicatas, na ordem em que aparecem."""
-    texto = _normalizar_html(html)
-    vistos: dict[str, str] = {}
-    achados: list[tuple[int, str, str]] = []
-    for m in _WHATSAPP_RE.finditer(texto):
-        achados.append((m.start(), "whatsapp", f"https://chat.whatsapp.com/{m.group(1)}"))
-    for m in _TELEGRAM_RE.finditer(texto):
-        if m.group(1):
-            achados.append((m.start(), "telegram", f"https://t.me/joinchat/{m.group(1)}"))
-        else:
-            achados.append((m.start(), "telegram", f"https://t.me/+{m.group(2)}"))
-    for _, plat, url in sorted(achados):
-        vistos.setdefault(url, plat)
-    return [(p, u) for u, p in vistos.items()]
+    """Retorna [(plataforma, url_canônica)] sem duplicatas, na ordem em que aparecem. (Delegado a services.convites — v2.)"""
+    from app.services.convites import extrair_convites as _v2
+
+    return _v2(html)
 
 
 def extrair_hashtags(html: str) -> dict[str, int]:

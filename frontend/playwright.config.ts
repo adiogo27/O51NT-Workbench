@@ -36,6 +36,7 @@ export default defineConfig({
       O51NT_DATA_DIR: DATA_DIR,
       O51NT_SCHEDULER_ENABLED: "false",
       O51NT_SEARXNG_URL: "http://127.0.0.1:9", // porta fechada: E2E não depende de rede
+      O51NT_MODELS_DIR_OVERRIDE: path.join(ROOT, "data", "models"), // reaproveita os modelos de OCR já baixados (sem rede no E2E)
     },
   },
 });

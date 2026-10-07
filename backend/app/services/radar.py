@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import html as html_mod
+import json
 import logging
 import re
 import time
@@ -51,6 +52,7 @@ class ItemFeed:
     titulo: str = ""
     resumo: str = ""
     publicado_em: datetime | None = None
+    midias: list[str] = field(default_factory=list)  # imagens (enclosure/media:content) — módulo Convocações
 
 
 def _local(tag: str) -> str:
@@ -117,8 +119,18 @@ def parse_feed(texto: str) -> list[ItemFeed]:
             continue
         campos: dict[str, ET.Element] = {}
         link = ""
+        midias: list[str] = []
         for filho in el:
             n = _local(filho.tag)
+            if n in ("enclosure", "content", "thumbnail") and filho.get("url"):
+                tipo_m = (filho.get("type") or "").lower()
+                medium = (filho.get("medium") or "").lower()
+                if n == "thumbnail" or tipo_m.startswith("image/") or medium == "image" or (n == "enclosure" and not tipo_m and re.search(r"\.(?:jpe?g|png|webp|gif)(?:\?|$)", filho.get("url", ""), re.I)):
+                    u = filho.get("url", "").strip()
+                    if u.startswith(("http://", "https://")) and u not in midias:
+                        midias.append(u)
+                if n == "content" and "}" in filho.tag:  # media:content não é o content:encoded
+                    continue
             if n == "link":
                 href = (filho.get("href") or "").strip()
                 rel = (filho.get("rel") or "alternate").lower()
@@ -141,7 +153,7 @@ def parse_feed(texto: str) -> list[ItemFeed]:
         if not titulo:
             titulo = resumo[:120]  # Mastodon: itens sem <title>
         publicado = parse_data(_texto(_primeiro(campos, "pubdate", "published", "updated", "date")))
-        itens.append(ItemFeed(url=link, titulo=titulo[:300], resumo=resumo[:RESUMO_MAX], publicado_em=publicado))
+        itens.append(ItemFeed(url=link, titulo=titulo[:300], resumo=resumo[:RESUMO_MAX], publicado_em=publicado, midias=midias[:6]))
     return itens
 
 
@@ -343,7 +355,7 @@ def inserir_itens(session: Session, fonte: Fonte, itens: list[ItemFeed]) -> list
         if i.url in existentes:
             continue
         existentes.add(i.url)
-        fi = FonteItem(fonte_id=fonte.id, url=i.url, titulo=i.titulo, resumo=i.resumo, publicado_em=i.publicado_em, sha256=_sha(i))
+        fi = FonteItem(fonte_id=fonte.id, url=i.url, titulo=i.titulo, resumo=i.resumo, publicado_em=i.publicado_em, sha256=_sha(i), midias=json.dumps(i.midias))
         session.add(fi)
         novos.append(fi)
     return novos
@@ -451,7 +463,25 @@ def hit_resumo(h: MonitorHit) -> dict[str, Any]:
     }
 
 
-async def _alertar(mon: Monitor, hits: list[MonitorHit]) -> str:
+async def _alertar(mon: Monitor, hits: list[MonitorHit], session: Session | None = None) -> str:
+    if session is not None:
+        try:
+            from app.models.alerta import Alerta
+            from app.services.alertas_db import registrar_sync
+
+            registrar_sync(
+                session,
+                Alerta(
+                    tipo="radar",
+                    severidade="media",
+                    titulo=f"{mon.nome}: {len(hits)} novo(s) resultado(s)",
+                    resumo="; ".join(h.titulo[:80] for h in hits[:5]),
+                    url=hits[0].url if hits else "",
+                    monitor_id=mon.id,
+                ),
+            )
+        except Exception:  # inbox nunca derruba o ciclo
+            logger.exception("falha ao gravar alerta do radar")
     evento = {
         "tipo": "radar",
         "monitor_id": mon.id,
@@ -483,7 +513,7 @@ async def ciclo(session: Session, scraper: EthicalScraper, apenas_fonte: Fonte |
     for mon in monitores:
         hits = por_monitor.get(mon.id or -1, [])
         if hits:
-            await _alertar(mon, hits)
+            await _alertar(mon, hits, session)
             alertas += 1
     resumo = {
         "executado_em": agora().isoformat(),

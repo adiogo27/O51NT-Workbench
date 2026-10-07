@@ -65,6 +65,13 @@ def salvar(stream: BinaryIO, nome_original: str, limite_bytes: int) -> tuple[str
     return rel, h.hexdigest(), tamanho
 
 
+def salvar_bytes(dados: bytes, nome_original: str, mime: str, origem_url: str | None = None, tipo: str = "imagem", notas: str = "", limite_bytes: int | None = None) -> Evidence:
+    """Cria a Evidence (sem commit) a partir de bytes já em memória — imagens baixadas pelos coletores, fotos de grupo."""
+    limite = limite_bytes if limite_bytes is not None else get_settings().max_upload_mb * 1024 * 1024
+    rel, sha, tamanho = salvar(io.BytesIO(dados), nome_original, limite)
+    return Evidence(tipo=tipo, origem_url=origem_url or None, arquivo=rel, nome_original=nome_original, tamanho=tamanho, mime=mime, sha256=sha, notas=notas)
+
+
 def caminho_absoluto(ev: Evidence) -> Path:
     base = evidence_dir().resolve()
     p = (base / ev.arquivo).resolve()

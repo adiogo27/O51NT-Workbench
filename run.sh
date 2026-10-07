@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # O51NT Workbench — startup.
-# Uso: ./run.sh [--browser NOME] [--no-browser] [--port N] [--rebuild] [--no-searxng] [--reset-db] [--dry-run] [--list-browsers]
+# Uso: ./run.sh [--browser NOME] [--no-browser] [--port N] [--rebuild] [--no-searxng] [--reset-db] [--reset-searxng] [--ml] [--sem-ocr] [--dry-run] [--list-browsers]
+#   --ml       instala o perfil completo do módulo Convocações (PyTorch CPU + open_clip, ~1 GB)   [ou O51NT_ML=1]
+#   --sem-ocr  não instala o OCR (rapidocr/onnxruntime); o módulo fica só com léxico + pHash + QR
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +23,9 @@ REBUILD=0
 DRY_RUN=0
 USE_SEARXNG=1
 RESET_DB=0
+RESET_SEARXNG=0
+INSTALL_ML="${O51NT_ML:-0}"
+INSTALL_OCR=1
 
 BROWSERS=(firefox firefox-esr chromium chromium-browser google-chrome google-chrome-stable brave-browser brave microsoft-edge opera vivaldi)
 
@@ -107,9 +112,19 @@ start_searxng() {
     return
   fi
   mkdir -p "$DATA/searxng"
+  if (( RESET_SEARXNG )) && [[ -f "$DATA/searxng/settings.yml" ]]; then
+    local secret_old; secret_old="$(grep -oP 'secret_key:\s*"\K[0-9a-f]+' "$DATA/searxng/settings.yml" 2>/dev/null || true)"
+    cp "$DATA/searxng/settings.yml" "$DATA/searxng/settings.yml.bak.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    rm -f "$DATA/searxng/settings.yml" 2>/dev/null || err "Sem permissão para apagar data/searxng/settings.yml (Docker rootless?). Veja o README (Limitações)."
+    [[ -n "$secret_old" ]] && SEARXNG_SECRET="$secret_old"
+    log "settings.yml do SearXNG recriado a partir do template (backup salvo)."
+  fi
   if [[ ! -f "$DATA/searxng/settings.yml" ]]; then
-    local secret; secret="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+    local secret; secret="${SEARXNG_SECRET:-$(python3 -c 'import secrets; print(secrets.token_hex(32))')}"
     sed "s/__SECRET__/$secret/" "$ROOT/deploy/searxng/settings.yml" >"$DATA/searxng/settings.yml"
+  elif ! grep -q "bing images" "$DATA/searxng/settings.yml" 2>/dev/null; then
+    err "data/searxng/settings.yml não tem os motores de imagem (bing images / duckduckgo images) usados pelo módulo Convocações."
+    err "  Atualize com: ./run.sh --reset-searxng   (faz backup e preserva o secret_key)"
   fi
   local cc; cc="$(compose_cmd)"
   log "Subindo SearXNG (${cc:-docker run})…"
@@ -134,6 +149,9 @@ while (( $# )); do
     --rebuild) REBUILD=1 ;;
     --no-searxng) USE_SEARXNG=0 ;;
     --reset-db) RESET_DB=1 ;;
+    --reset-searxng) RESET_SEARXNG=1 ;;
+    --ml) INSTALL_ML=1 ;;
+    --sem-ocr) INSTALL_OCR=0 ;;
     --dry-run) DRY_RUN=1 ;;
     --list-browsers) detect_browsers; exit 0 ;;
     -h|--help) sed -n '2,3p' "$0"; exit 0 ;;
@@ -166,12 +184,17 @@ if (( DRY_RUN )); then
     log "Docker: ausente"
   fi
   log "SearXNG: $SEARXNG_URL ($(curl -fsS "$SEARXNG_URL/healthz" >/dev/null 2>&1 && echo disponível || echo indisponível))"
+  if [[ -x "$VENV/bin/python" ]]; then
+    log "Convocações: OCR $("$VENV/bin/python" -c 'import importlib.util as u; print("instalado" if u.find_spec("rapidocr") else "ausente")' 2>/dev/null) · CLIP $("$VENV/bin/python" -c 'import importlib.util as u; print("instalado" if u.find_spec("open_clip") else "ausente (opt-in: ./run.sh --ml)")' 2>/dev/null) · modelos em $DATA/models"
+  else
+    log "Convocações: venv ausente (OCR será instalado no primeiro ./run.sh; CLIP é opt-in com --ml)"
+  fi
   (( RESET_DB )) && log "--reset-db: faria backup de $DB e o removeria."
   log "URL: $URL"
   exit 0
 fi
 
-mkdir -p "$RUN_DIR" "$DATA/logs" "$DATA/evidence" "$DATA/alerts"
+mkdir -p "$RUN_DIR" "$DATA/logs" "$DATA/evidence" "$DATA/alerts" "$DATA/models"
 
 (( RESET_DB )) && reset_db
 (( USE_SEARXNG )) && start_searxng
@@ -191,6 +214,18 @@ else
     "$VENV/bin/pip" install -q --upgrade pip
     "$VENV/bin/pip" install -q -r "$ROOT/requirements.txt"
     touch "$STAMP"
+  fi
+  # OCR (perfil leve do módulo Convocações): rapidocr + onnxruntime. Modelos (~15 MB) baixam na 1ª análise para data/models/.
+  STAMP_CV="$VENV/.deps-cv-installed"
+  if (( INSTALL_OCR )) && [[ ! -f "$STAMP_CV" || "$ROOT/requirements-cv.txt" -nt "$STAMP_CV" ]]; then
+    log "Instalando OCR (rapidocr/onnxruntime)…"
+    "$VENV/bin/pip" install -q -r "$ROOT/requirements-cv.txt" && touch "$STAMP_CV" || err "Falha ao instalar o OCR; o módulo Convocações segue sem leitura de texto em imagem."
+  fi
+  # CLIP (perfil completo, opt-in): PyTorch CPU + open_clip (~1 GB em disco, ~1 GB de RAM quando carregado).
+  STAMP_ML="$VENV/.deps-ml-installed"
+  if (( INSTALL_ML )) && [[ ! -f "$STAMP_ML" || "$ROOT/requirements-ml.txt" -nt "$STAMP_ML" ]]; then
+    log "Instalando perfil completo (PyTorch CPU + open_clip)… isso pode levar alguns minutos."
+    "$VENV/bin/pip" install -q -r "$ROOT/requirements-ml.txt" && touch "$STAMP_ML" || err "Falha ao instalar PyTorch/open_clip; o perfil 'completo' ficará indisponível."
   fi
   # Chromium do Playwright é opcional: se faltar, o scraper usa o Chromium do sistema.
   if [[ ! -d "$HOME/.cache/ms-playwright" ]] && ! command -v chromium >/dev/null && ! command -v google-chrome >/dev/null; then
@@ -217,6 +252,7 @@ else
   (
     cd "$ROOT/backend" || exit 1
     O51NT_DATA_DIR="$DATA" O51NT_PORT="$PORT" O51NT_SEARXNG_URL="$SEARXNG_URL" \
+      OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}" XDG_CACHE_HOME="$DATA/models/cache" HF_HOME="$DATA/models/hf" TOKENIZERS_PARALLELISM=false \
       nohup "$VENV/bin/python" -m uvicorn app.main:app --host "$HOST" --port "$PORT" --log-level warning \
       >>"$LOG_FILE" 2>&1 </dev/null &
     echo $! >"$PID_FILE"

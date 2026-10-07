@@ -1,0 +1,6 @@
+# Perfil "completo" do módulo Convocações: CLIP (PyTorch CPU + open_clip). Opt-in: ./run.sh --ml  (ou O51NT_ML=1)
+# O índice extra garante a wheel CPU (~200 MB) em vez do build CUDA (vários GB).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.*
+torchvision
+open_clip_torch>=3.3

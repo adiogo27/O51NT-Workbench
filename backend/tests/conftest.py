@@ -18,6 +18,7 @@ class FakeFetcher:
 
     def __init__(self, paginas: dict[str, tuple[int, str]] | None = None) -> None:
         self.paginas = paginas or {}
+        self.binarios: dict[str, tuple[int, bytes, str]] = {}  # {url: (status, bytes, mime)} para buscar_bytes
         self.chamadas: list[str] = []
 
     async def get(self, url: str, timeout: float) -> tuple[int, str]:
@@ -27,6 +28,18 @@ class FakeFetcher:
         if url.endswith("/robots.txt"):
             return 404, ""
         return 404, "not found"
+
+    async def get_bytes(self, url: str, timeout: float, limite: int) -> tuple[int, bytes, str]:
+        self.chamadas.append(url)
+        if url in self.binarios:
+            status, dados, mime = self.binarios[url]
+            if len(dados) > limite:
+                raise ValueError(f"conteúdo excede o limite de {limite // (1024 * 1024)} MB")
+            return status, dados, mime
+        if url in self.paginas:
+            status, html = self.paginas[url]
+            return status, html.encode(), "text/html"
+        return 404, b"", "text/plain"
 
     async def close(self) -> None:
         return None

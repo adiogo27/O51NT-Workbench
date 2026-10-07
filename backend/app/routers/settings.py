@@ -62,6 +62,8 @@ async def atualizar(dados: SettingsIn) -> AppSettings:
     from app.services import scheduler  # import tardio: evita ciclo routers ↔ services
 
     scheduler.agendar_radar()
+    scheduler.agendar_convocacoes()
+    scheduler.agendar_convites()
     return cfg
 
 
@@ -69,6 +71,11 @@ async def atualizar(dados: SettingsIn) -> AppSettings:
 async def resetar() -> AppSettings:
     cfg = AppSettings()
     salvar(cfg)
+    from app.services import scheduler
+
+    scheduler.agendar_radar()
+    scheduler.agendar_convocacoes()
+    scheduler.agendar_convites()
     return cfg
 
 

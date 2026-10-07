@@ -32,9 +32,22 @@ def podar_historico(session: Session, older_than_days: int | None = None, max_en
     return removidas
 
 
+def podar_deteccoes_descartadas(session: Session, older_than_days: int | None) -> int:
+    """Minimização (LGPD): remove detecções DESCARTADAS mais antigas que N dias. Evidências ficam (cadeia de custódia)."""
+    if not older_than_days:
+        return 0
+    from app.models.convocacao import Deteccao
+
+    limite = datetime.now(UTC) - timedelta(days=older_than_days)
+    r = session.exec(delete(Deteccao).where(Deteccao.estado == "descartada", col(Deteccao.criado_em) < limite))  # type: ignore[call-overload]
+    session.commit()
+    return r.rowcount or 0
+
+
 def aplicar_politica(session: Session) -> int:
-    """Aplica a política configurada em data/settings.json (preferencias.historico*)."""
+    """Aplica a política configurada em data/settings.json (preferencias.historico* e convocacoesRetencaoDias)."""
     from app.routers.settings import carregar
 
     p = carregar().preferencias
-    return podar_historico(session, p.historicoRetencaoDias or None, p.historicoMaxEntradas or None)
+    n = podar_historico(session, p.historicoRetencaoDias or None, p.historicoMaxEntradas or None)
+    return n + podar_deteccoes_descartadas(session, p.convocacoesRetencaoDias or None)

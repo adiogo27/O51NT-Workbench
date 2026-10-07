@@ -40,6 +40,7 @@ class FonteItem(SQLModel, table=True):
     publicado_em: datetime | None = Field(default=None, index=True)
     coletado_em: datetime = Field(default_factory=agora, index=True)
     sha256: str = ""
+    midias: str = "[]"  # JSON: URLs de imagens (enclosure / media:content) para o módulo Convocações
 
 
 class MonitorHit(SQLModel, table=True):

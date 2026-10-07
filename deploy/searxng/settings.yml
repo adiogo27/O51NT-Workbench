@@ -6,6 +6,9 @@ use_default_settings:
       - duckduckgo
       - bing
       - startpage
+      # categoria "images": usada pelo módulo Convocações (fontes do tipo searxng_imagens)
+      - bing images
+      - duckduckgo images
 
 general:
   instance_name: "O51NT SearXNG (local)"

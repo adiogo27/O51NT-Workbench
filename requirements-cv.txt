@@ -1,0 +1,4 @@
+# OCR em CPU (perfil "leve" do módulo Convocações). Instalado por padrão pelo run.sh; pule com --sem-ocr.
+# rapidocr depende de opencv-python (NÃO instalar opencv-python-headless junto: os dois corrompem o módulo cv2).
+rapidocr>=3.9
+onnxruntime>=1.30

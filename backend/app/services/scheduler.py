@@ -180,6 +180,98 @@ def agendar_radar() -> None:
     )
 
 
+CONVOCACOES_JOB_ID = "convocacoes-ciclo"
+DESCARGA_JOB_ID = "convocacoes-descarga"
+CONVITES_JOB_ID = "convites-verificar"
+
+
+async def executar_convocacoes() -> None:
+    from app.services.convocacoes import coleta
+    from app.services.convocacoes.analisador import get_analisador
+    from app.services.scraper import get_scraper as _scraper
+    from app.services.searxng_client import get_searxng
+
+    with Session(get_engine()) as session:
+        try:
+            await coleta.ciclo(session, _scraper(), get_analisador(), get_searxng())
+        except Exception:
+            logger.exception("falha no ciclo de convocações")
+
+
+async def executar_descarga() -> None:
+    from app.services.convocacoes.analisador import get_analisador
+
+    try:
+        get_analisador().descarregar()
+    except Exception:
+        logger.exception("falha ao descarregar modelos")
+
+
+async def executar_verificacao_convites() -> None:
+    from app.routers.invites import verificar_lote
+
+    with Session(get_engine()) as session:
+        try:
+            await verificar_lote(session, limite=20)
+        except Exception:
+            logger.exception("falha na verificação de convites")
+
+
+def job_convocacoes():  # noqa: ANN201
+    return _scheduler.get_job(CONVOCACOES_JOB_ID) if _scheduler is not None else None
+
+
+def job_convites():  # noqa: ANN201
+    return _scheduler.get_job(CONVITES_JOB_ID) if _scheduler is not None else None
+
+
+def agendar_convocacoes() -> None:
+    """Ciclo do coletor de convocações (preferências convocacoesAtivo/IntervaloMin) + descarga de modelos ociosos (sempre)."""
+    if _scheduler is None:
+        return
+    from app.routers.settings import carregar
+
+    prefs = carregar().preferencias
+    _scheduler.add_job(executar_descarga, trigger=IntervalTrigger(minutes=5, timezone=_tz()), id=DESCARGA_JOB_ID, replace_existing=True, coalesce=True, max_instances=1, misfire_grace_time=300)
+    if not prefs.convocacoesAtivo:
+        if _scheduler.get_job(CONVOCACOES_JOB_ID):
+            _scheduler.remove_job(CONVOCACOES_JOB_ID)
+        return
+    _scheduler.add_job(
+        executar_convocacoes,
+        trigger=IntervalTrigger(minutes=prefs.convocacoesIntervaloMin, timezone=_tz()),
+        id=CONVOCACOES_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=600,
+        next_run_time=datetime.now(_tz()) + timedelta(seconds=45),
+    )
+
+
+def agendar_convites() -> None:
+    """Reverificação periódica de convites (desligada por padrão: convitesVerificarAuto)."""
+    if _scheduler is None:
+        return
+    from app.routers.settings import carregar
+
+    prefs = carregar().preferencias
+    if not prefs.convitesVerificarAuto:
+        if _scheduler.get_job(CONVITES_JOB_ID):
+            _scheduler.remove_job(CONVITES_JOB_ID)
+        return
+    _scheduler.add_job(
+        executar_verificacao_convites,
+        trigger=IntervalTrigger(hours=prefs.convitesVerificarIntervaloHoras, timezone=_tz()),
+        id=CONVITES_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+        next_run_time=datetime.now(_tz()) + timedelta(minutes=2),
+    )
+
+
 def iniciar() -> AsyncIOScheduler:
     """Sobe o scheduler e reconstrói os jobs a partir da tabela Monitor."""
     global _scheduler
@@ -197,6 +289,8 @@ def iniciar() -> AsyncIOScheduler:
             except ValueError:
                 logger.warning("cron inválido ignorado", extra={"dados": {"monitor_id": m.id, "cron": m.cron}})
     agendar_radar()
+    agendar_convocacoes()
+    agendar_convites()
     return _scheduler
 
 

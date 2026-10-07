@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     max_upload_mb: int = 50
     searxng_url: str = "http://127.0.0.1:8080"
+    models_dir_override: Path | None = None
+    max_download_mb: int = 15  # imagens/fotos baixadas pelos coletores
 
     @property
     def db_path(self) -> Path:
@@ -50,8 +52,13 @@ class Settings(BaseSettings):
     def settings_file(self) -> Path:
         return self.data_dir / "settings.json"
 
+    @property
+    def models_dir(self) -> Path:
+        """Modelos de ML baixados (OCR/CLIP). Sobrescreva com O51NT_MODELS_DIR."""
+        return self.models_dir_override or (self.data_dir / "models")
+
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.evidence_dir, self.alerts_dir, self.logs_dir, self.uploads_dir):
+        for d in (self.data_dir, self.evidence_dir, self.alerts_dir, self.logs_dir, self.uploads_dir, self.models_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

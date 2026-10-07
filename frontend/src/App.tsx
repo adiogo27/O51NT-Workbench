@@ -1,8 +1,11 @@
-import { CalendarDays, Clock, FileSearch, Hash, Image, Link2, Newspaper, Palette, Search, Wrench } from "lucide-react";
+import { Bell, CalendarDays, Clock, FileSearch, Hash, Image, Link2, Megaphone, Newspaper, Palette, Search, Wrench } from "lucide-react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { AlertasBadge } from "@/components/AlertasBadge";
 import { cn } from "@/lib/utils";
 import AgendaPage from "@/pages/Agenda";
+import AlertasPage from "@/pages/Alertas";
 import BoletimPage from "@/pages/Boletim";
+import ConvocacoesPage from "@/pages/Convocacoes";
 import EvidencePage from "@/pages/Evidence";
 import HashtagsPage from "@/pages/Hashtags";
 import ImagesPage from "@/pages/Images";
@@ -15,6 +18,8 @@ import ToolsPage from "@/pages/Tools";
 const NAV = [
   { to: "/query", label: "Query Builder", icon: Search },
   { to: "/monitors", label: "Monitores", icon: Clock },
+  { to: "/convocacoes", label: "Convocações", icon: Megaphone },
+  { to: "/alertas", label: "Alertas", icon: Bell, badge: true },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/boletim", label: "Boletim", icon: Newspaper },
   { to: "/invites", label: "Convites", icon: Link2 },
@@ -37,7 +42,7 @@ export default function App() {
           <p className="text-xs opacity-75">Workbench local</p>
         </div>
         <nav aria-label="Módulos" className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:overflow-visible">
-          {NAV.map(({ to, label, icon: Icon }) => (
+          {NAV.map(({ to, label, icon: Icon, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -49,6 +54,7 @@ export default function App() {
               }
             >
               <Icon size={16} aria-hidden /> {label}
+              {badge && <AlertasBadge />}
             </NavLink>
           ))}
         </nav>
@@ -58,6 +64,8 @@ export default function App() {
           <Route path="/" element={<Navigate to="/query" replace />} />
           <Route path="/query" element={<QueryBuilderPage />} />
           <Route path="/monitors" element={<MonitorsPage />} />
+          <Route path="/convocacoes" element={<ConvocacoesPage />} />
+          <Route path="/alertas" element={<AlertasPage />} />
           <Route path="/agenda" element={<AgendaPage />} />
           <Route path="/boletim" element={<BoletimPage />} />
           <Route path="/invites" element={<InvitesPage />} />

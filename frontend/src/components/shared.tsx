@@ -128,6 +128,7 @@ export function ScrapeExecucoes({ execucoes }: { execucoes: ScrapeExecucao[] }) 
             <Badge variant={e.erro ? "danger" : "success"}>{e.erro ? "falhou" : `HTTP ${e.status}`}</Badge>
             <strong>{e.fonte}</strong>
             {e.plataforma && <Badge>{e.plataforma}</Badge>}
+            {e.query && <span className="code text-xs text-muted-foreground">{e.query}</span>}
             {e.encontrados !== undefined && <span>{e.encontrados} convite(s)</span>}
             {e.resultados_busca !== undefined && <span className="text-muted-foreground">em {e.resultados_busca} resultado(s)</span>}
             <span className="text-muted-foreground">{formatDate(e.coletado_em)}</span>
@@ -262,16 +263,19 @@ export function SearxngSearchButton({
   pending,
   onClick,
   label = "Buscar via SearXNG",
+  permitirOperadores = false,
 }: {
   queries: string[];
   disabled?: boolean;
   pending?: boolean;
   onClick: () => void;
   label?: string;
+  /** Convites: as consultas são geradas pelo backend só com `site:` simples e aspas, que Bing/DDG honram. */
+  permitirOperadores?: boolean;
 }) {
   const opsGoogle = React.useMemo(() => [...new Set(queries.flatMap((q) => detectGoogleOperators(q)))], [queries]);
   const opsX = React.useMemo(() => [...new Set(queries.flatMap((q) => detectXOperators(q)))], [queries]);
-  const bloqueado = opsGoogle.length > 0 || opsX.length > 0;
+  const bloqueado = !permitirOperadores && (opsGoogle.length > 0 || opsX.length > 0);
   // Google tem prioridade na mensagem (é a regra original); X aparece quando só há operadores do X.
   const motivo = opsGoogle.length > 0 ? MOTIVO_SEM_SEARXNG : MOTIVO_SEM_SEARXNG_X;
   const id = React.useId();

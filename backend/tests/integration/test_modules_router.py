@@ -63,23 +63,25 @@ def test_invites_queries(client: TestClient) -> None:
 
 
 def test_invites_scan_export_delete(client: TestClient, fake_searxng) -> None:  # noqa: ANN001
-    from app.routers.invites import montar_queries
+    from app.services.convites import montar_queries_searxng
 
-    qs = montar_queries("blitz")
+    qs = {plat: lista[0] for plat, lista in montar_queries_searxng("blitz").items()}  # 1ª consulta de cada plataforma
     fake_searxng.respostas[qs["whatsapp"]] = [
         {"url": "https://www.facebook.com/p/1", "title": "Grupo", "content": "entre: chat.whatsapp.com/AAAAABBBBBCCCCC"},
         {"url": "https://chat.whatsapp.com/DDDDDEEEEEFFFFF", "title": "", "content": ""},
     ]
     fake_searxng.respostas[qs["telegram"]] = [{"url": "https://x.com/s/1", "title": "t.me/joinchat/ZZZZZZZZZZ", "content": ""}]
-    r = client.post("/api/invites/scan", json={"termo": "blitz"}).json()
+    r = client.post("/api/invites/scan", json={"termo": "blitz", "max_consultas": 1}).json()
     assert r["novos"] == 3
     assert {e["plataforma"]: e["encontrados"] for e in r["execucoes"]} == {"whatsapp": 2, "telegram": 1}
     assert all(e["fonte"] == "searxng:duckduckgo,bing,startpage" for e in r["execucoes"])
-    r2 = client.post("/api/invites/scan", json={"termo": "blitz", "engines": ["duckduckgo"]}).json()
+    r2 = client.post("/api/invites/scan", json={"termo": "blitz", "engines": ["duckduckgo"], "max_consultas": 1}).json()
     assert r2["novos"] == 0 and r2["atualizados"] == 3
     lista = client.get("/api/invites").json()
     assert {i["plataforma"] for i in lista} == {"whatsapp", "telegram"}
     assert all(len(i["hash_conteudo"]) == 64 and "searxng.test" in i["origem"] for i in lista)
+    assert {i["fonte_url"] for i in lista} == {"https://www.facebook.com/p/1", "https://chat.whatsapp.com/DDDDDEEEEEFFFFF", "https://x.com/s/1"}
+    assert all(i["status"] == "desconhecido" for i in lista)
     csv_txt = client.get("/api/invites/export", params={"formato": "csv"}).text
     assert csv_txt.splitlines()[0].startswith("id,plataforma,url")
     assert len(json.loads(client.get("/api/invites/export", params={"formato": "json"}).text)) == 3

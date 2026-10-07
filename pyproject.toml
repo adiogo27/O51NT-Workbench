@@ -33,5 +33,6 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
   "unit: testes unitários isolados por módulo",
   "integration: testes end-to-end via httpx/TestClient",
+  "ml: exige modelos de ML instalados (rapidocr/open_clip); pulados se ausentes",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
