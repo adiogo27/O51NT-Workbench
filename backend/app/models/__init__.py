@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.models.agenda import AgendaEvento
 from app.models.alerta import Alerta
+from app.models.auth import CodigoAcesso, EventoAcesso, Sessao, Usuario
 from app.models.backoff import DomainBackoff
 from app.models.boletim import BoletimItem, Perfil
 from app.models.convocacao import Deteccao, DeteccaoOcorrencia, FonteConvocacao, ReferenciaCartaz
@@ -16,6 +17,10 @@ from app.models.template import QueryTemplate
 __all__ = [
     "AgendaEvento",
     "Alerta",
+    "CodigoAcesso",
+    "EventoAcesso",
+    "Sessao",
+    "Usuario",
     "BoletimItem",
     "Deteccao",
     "DeteccaoOcorrencia",

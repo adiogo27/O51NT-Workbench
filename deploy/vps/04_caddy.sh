@@ -18,6 +18,8 @@ USUARIO=$(awk -F= '/^usuario=/{print $2}' "$CRED")
 SENHA=$(awk -F= '/^senha=/{print $2}' "$CRED")
 HASH=$(caddy hash-password --plaintext "$SENHA")
 
+# proxies confiáveis (07_cloudflare.sh acrescenta as faixas da Cloudflare); sem o arquivo o Caddyfile não valida
+[[ -s /etc/caddy/confiaveis.caddy ]] || echo "trusted_proxies static private_ranges" >/etc/caddy/confiaveis.caddy
 sed -e "s|__USUARIO__|$USUARIO|" -e "s|__HASH__|$HASH|" "$APP/deploy/vps/Caddyfile" >/etc/caddy/Caddyfile.novo
 caddy validate --config /etc/caddy/Caddyfile.novo --adapter caddyfile >/dev/null
 mv /etc/caddy/Caddyfile.novo /etc/caddy/Caddyfile
@@ -26,6 +28,29 @@ caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 install -d -m 750 -o caddy -g caddy /var/log/caddy
 chown -R caddy:caddy /var/log/caddy
 systemctl reload caddy || systemctl restart caddy
+
+# fail2ban: bane IPs que erram a senha básica ou o código de login (log JSON do Caddy, IP real do cliente)
+cat >/etc/fail2ban/filter.d/o51nt-caddy.conf <<'EOF'
+[Definition]
+# 1) código/e-mail errado ou limite no login do app  2) falha na autenticação básica (user_id vazio + 401)
+failregex = ^.*"client_ip":"<HOST>".*"uri":"/api/auth/(verificar|solicitar)[^"]*".*"status":(401|422|429).*$
+            ^.*"client_ip":"<HOST>".*"user_id":"".*"status":401.*$
+ignoreregex =
+datepattern = "ts":"%%d/%%b/%%Y:%%H:%%M:%%S %%z"
+EOF
+cat >/etc/fail2ban/jail.d/o51nt-caddy.local <<'EOF'
+[o51nt-caddy]
+enabled  = true
+filter   = o51nt-caddy
+logpath  = /var/log/caddy/o51nt.log
+backend  = polling
+maxretry = 8
+findtime = 10m
+bantime  = 2h
+action   = ufw
+EOF
+systemctl reload fail2ban || systemctl restart fail2ban
+echo "  fail2ban o51nt-caddy: $(fail2ban-client status o51nt-caddy 2>/dev/null | grep -c 'Currently banned' | sed 's/1/ativo/;s/0/INATIVO/')"
 
 log "aguardando certificado…"
 for _ in $(seq 1 30); do

@@ -33,6 +33,34 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
     telegram_chat_id: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_ID"))
     telegram_api_base: str = "https://api.telegram.org"
+    # Autenticação do painel (ativa quando O51NT_ADMIN_EMAIL está definido). Login = e-mail autorizado + código
+    # de uso único entregue por e-mail (SMTP); só administradores cadastram usuários. Sem SMTP o código cai no
+    # Telegram do usuário (se houver) ou no journal do serviço (só o operador da VM lê).
+    admin_email: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_ADMIN_EMAIL", "ADMIN_EMAIL"))
+    smtp_host: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_SMTP_HOST", "SMTP_HOST"))
+    smtp_port: int = Field(default=587, validation_alias=AliasChoices("O51NT_SMTP_PORT", "SMTP_PORT"))
+    smtp_user: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_SMTP_USER", "SMTP_USER"))
+    smtp_password: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_SMTP_PASSWORD", "SMTP_PASSWORD"))
+    smtp_from: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_SMTP_FROM", "SMTP_FROM"))
+    smtp_ssl: bool = Field(default=False, validation_alias=AliasChoices("O51NT_SMTP_SSL", "SMTP_SSL"))  # True = SMTPS 465
+    auth_secret: str | None = None  # pepper dos hashes; se ausente, gerado e guardado em data/auth_secret
+    auth_codigo_minutos: int = 10
+    auth_codigo_tentativas: int = 5
+    auth_pedidos_por_15min: int = 5
+    auth_falhas_bloqueio: int = 5
+    auth_bloqueio_minutos: int = 15
+    auth_sessao_horas: int = 12
+    auth_sessao_inatividade_min: int = 120
+    auth_cookie_secure: bool = True
+    app_url: str = "https://o51nt.sentinela.api.br"
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.admin_email)
+
+    @property
+    def smtp_configurado(self) -> bool:
+        return bool(self.smtp_host and (self.smtp_from or self.smtp_user))
 
     @property
     def db_path(self) -> Path:

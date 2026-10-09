@@ -7,8 +7,16 @@ export class ApiError extends Error {
   }
 }
 
+/** Cabeçalho exigido pelo backend em requisições que alteram estado (anti-CSRF, junto do cookie SameSite=Strict). */
+export const CSRF_HEADER: Record<string, string> = { "X-Requested-With": "O51NT" };
+export const EVENTO_NAO_AUTENTICADO = "o51nt:nao-autenticado";
+
+function avisarNaoAutenticado(path: string): void {
+  if (!path.startsWith("/api/auth/")) window.dispatchEvent(new Event(EVENTO_NAO_AUTENTICADO));
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method, headers: {} };
+  const init: RequestInit = { method, headers: { ...CSRF_HEADER }, credentials: "same-origin" };
   if (body instanceof FormData) {
     init.body = body;
   } else if (body !== undefined) {
@@ -16,6 +24,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     (init.headers as Record<string, string>)["Content-Type"] = "application/json";
   }
   const res = await fetch(path, init);
+  if (res.status === 401) avisarNaoAutenticado(path);
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
@@ -39,9 +48,11 @@ export const api = {
   blob: async (method: string, p: string, b?: unknown): Promise<Blob> => {
     const res = await fetch(p, {
       method,
-      headers: b ? { "Content-Type": "application/json" } : {},
+      headers: b ? { "Content-Type": "application/json", ...CSRF_HEADER } : { ...CSRF_HEADER },
       body: b ? JSON.stringify(b) : undefined,
+      credentials: "same-origin",
     });
+    if (res.status === 401) avisarNaoAutenticado(p);
     if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`);
     return res.blob();
   },
@@ -55,6 +66,46 @@ export const qs = (params: Record<string, string | number | undefined | null>): 
 };
 
 // ------------------------------------------------------------------ tipos
+export interface Usuario {
+  id: number;
+  email: string;
+  nome: string;
+  papel: "admin" | "analista";
+  ativo: boolean;
+  telegram_chat_id: string | null;
+  criado_em: string;
+  criado_por: string;
+  ultimo_login: string | null;
+}
+
+export interface AuthEstado {
+  ativo: boolean;
+  autenticado: boolean;
+  usuario: Usuario | null;
+  canal: "email" | "telegram" | "journal" | "nenhum";
+  validade_min: number;
+}
+
+export interface SessaoInfo {
+  id: number;
+  criado_em: string;
+  ultimo_uso: string;
+  expira_em: string;
+  ip: string;
+  user_agent: string;
+  atual: boolean;
+}
+
+export interface EventoAcesso {
+  id: number;
+  em: string;
+  evento: string;
+  email: string;
+  ip: string;
+  ok: boolean;
+  detalhe: string;
+}
+
 export interface Problema {
   codigo: string;
   mensagem: string;
@@ -102,7 +153,7 @@ export interface Monitor {
   nome: string;
   query: string;
   cron: string;
-  canal_alerta: "jsonl" | "webhook" | "nenhum";
+  canal_alerta: "jsonl" | "webhook" | "telegram" | "nenhum";
   webhook_url: string | null;
   tipo: "query" | "hashtag";
   ativo: boolean;

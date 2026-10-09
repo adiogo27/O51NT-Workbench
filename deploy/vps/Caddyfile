@@ -1,9 +1,12 @@
 # /etc/caddy/Caddyfile — O51NT Workbench atrás do Caddy (HTTPS automático via Let's Encrypt + autenticação básica).
 # O app segue só em 127.0.0.1:8051; nada é exposto sem senha. __HASH__ é trocado pelo 04_caddy.sh (bcrypt).
+# Camadas de login: (1) basic auth aqui, (2) e-mail autorizado + código no app, (3) opcional Cloudflare Access (ver CLOUDFLARE.md).
 {
 	email adiogo27@gmail.com
 	servers {
-		trusted_proxies static private_ranges
+		# /etc/caddy/confiaveis.caddy: "trusted_proxies static private_ranges [faixas da Cloudflare]" (07_cloudflare.sh)
+		import /etc/caddy/confiaveis.caddy
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
 	}
 }
 
@@ -14,17 +17,26 @@ o51nt.sentinela.api.br {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		# Em modo relatório para não quebrar a interface; promova a Content-Security-Policy após validar no navegador.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		-Server
 	}
 	basic_auth {
 		__USUARIO__ __HASH__
 	}
+	# respostas de autenticação nunca entram em cache
+	@auth path /api/auth/*
+	header @auth Cache-Control "no-store"
 	# uploads de evidências/imagens: 50 MB como no app
 	request_body {
 		max_size 60MB
 	}
 	reverse_proxy 127.0.0.1:8051 {
 		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {client_ip}
 		transport http {
 			read_timeout 120s
 		}
@@ -34,7 +46,9 @@ o51nt.sentinela.api.br {
 			roll_size 10MiB
 			roll_keep 5
 		}
-		format json
+		format json {
+			time_format "02/Jan/2006:15:04:05 -0700"
+		}
 	}
 }
 

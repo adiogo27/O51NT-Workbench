@@ -53,6 +53,8 @@ if ! grep -q '^TELEGRAM_BOT_TOKEN=' "$BASE/.env"; then
   log "AVISO: TELEGRAM_BOT_TOKEN ausente em $BASE/.env (canal Telegram ficará desativado até ser definido)"
 fi
 grep -q '^TELEGRAM_CHAT_ID=' "$BASE/.env" || echo 'TELEGRAM_CHAT_ID=371824016' >>"$BASE/.env"
+# login do painel: e-mail autorizado + código (o admin inicial é criado no primeiro start; SMTP via segredos.sh)
+grep -q '^O51NT_ADMIN_EMAIL=' "$BASE/.env" || echo 'O51NT_ADMIN_EMAIL=adiogo27@gmail.com' >>"$BASE/.env"
 
 log "serviço systemd + backup diário"
 sudo install -m 644 "$APP/deploy/vps/o51nt.service" /etc/systemd/system/o51nt.service

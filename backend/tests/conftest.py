@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import config, db
+from app.services import auth as auth_svc
 from app.services import scheduler, scraper, searxng_client
 
 
@@ -69,8 +70,11 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     monkeypatch.setenv("O51NT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("O51NT_STATIC_DIR", str(tmp_path / "static"))
     monkeypatch.setenv("O51NT_SCHEDULER_ENABLED", "false")
+    monkeypatch.delenv("O51NT_ADMIN_EMAIL", raising=False)
+    monkeypatch.delenv("ADMIN_EMAIL", raising=False)
     config.get_settings.cache_clear()
     db.set_engine(None)
+    auth_svc.reset_cache()
     yield tmp_path / "data"
     eng = db._engine
     if eng is not None:
@@ -79,6 +83,7 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     scraper.set_scraper(None)
     searxng_client.set_searxng(None)
     scheduler.parar()
+    auth_svc.reset_cache()
     config.get_settings.cache_clear()
 
 
