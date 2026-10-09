@@ -136,16 +136,21 @@ def _upsert(session: Session, plat: str, url: str, termo: str, origem: str, font
 @router.post("/scan", response_model=ScanOut)
 async def scan(dados: ScanIn, session: Session = Depends(get_session)) -> ScanOut:
     """Consultas ao SearXNG local (dorks sem parênteses/OR, que Bing/DDG honram); convites extraídos de URL/título/snippet."""
+    return await executar_scan(session, dados.termo, list(dados.plataformas), list(dados.engines), dados.max_consultas)
+
+
+async def executar_scan(session: Session, termo: str, plataformas: list[str], engines: list[str], max_consultas: int = 3, origem: str = "searxng") -> ScanOut:
+    """Núcleo do scan (também usado pelas Convocações: termos do cartaz → convites abertos)."""
     cliente = get_searxng()
-    qs = svc.montar_queries_searxng(dados.termo)
-    fonte = "searxng:" + ",".join(dados.engines)
+    qs = svc.montar_queries_searxng(termo)
+    fonte = "searxng:" + ",".join(engines)
     execucoes: list[ScanFonte] = []
     novos = atualizados = 0
     tocados: list[Invite] = []
-    for plat in dados.plataformas:
-        for q in qs[plat][: dados.max_consultas]:
+    for plat in plataformas:
+        for q in qs[plat][:max_consultas]:
             try:
-                res = await cliente.buscar(q, dados.engines)
+                res = await cliente.buscar(q, engines)
             except SearxngIndisponivel as exc:
                 raise HTTPException(503, str(exc)) from exc
             achados: list[tuple[str, str, str]] = []  # (plataforma, url, fonte_url)
@@ -160,7 +165,7 @@ async def scan(dados: ScanIn, session: Session = Depends(get_session)) -> ScanOu
                 if u in vistos:
                     continue
                 vistos.add(u)
-                inv, novo = _upsert(session, p, u, dados.termo, res.url, fonte_url, res.sha256)
+                inv, novo = _upsert(session, p, u, termo, res.url, fonte_url, res.sha256)
                 novos += int(novo)
                 atualizados += int(not novo)
                 tocados.append(inv)
@@ -175,7 +180,7 @@ async def scan(dados: ScanIn, session: Session = Depends(get_session)) -> ScanOu
     for inv in tocados:
         session.refresh(inv)
         saida[inv.url] = _out(inv)
-    return ScanOut(termo=dados.termo, novos=novos, atualizados=atualizados, execucoes=execucoes, convites=list(saida.values()))
+    return ScanOut(termo=termo, novos=novos, atualizados=atualizados, execucoes=execucoes, convites=list(saida.values()))
 
 
 @router.post("/extrair")

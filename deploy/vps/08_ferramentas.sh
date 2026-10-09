@@ -18,15 +18,24 @@ apt-get install -y -qq whois dnsutils libimage-exiftool-perl pipx python3-venv c
 
 log "pacotes Python isolados (pipx em $BASE/pipx)"
 export PIPX_HOME=$BASE/pipx PIPX_BIN_DIR=$BIN
-for pkg in theHarvester dnsrecon sherlock-project maigret yt-dlp holehe h8mail; do
+for pkg in dnsrecon sherlock-project maigret yt-dlp holehe h8mail; do
   if pipx list --short 2>/dev/null | grep -qi "^${pkg%%-*}"; then
     pipx upgrade "$pkg" >/dev/null 2>&1 || true
   else
     pipx install "$pkg" >/dev/null 2>&1 && log "  $pkg instalado" || log "  aviso: $pkg falhou (segue sem ele)"
   fi
 done
-# nomes de binário esperados pelo registro (services/ferramentas.py)
-[[ -x $BIN/theHarvester ]] || { [[ -x $BIN/theharvester ]] && ln -sf "$BIN/theharvester" "$BIN/theHarvester" || true; }
+# theHarvester: o pacote "theHarvester" do PyPI é um placeholder (0.0.1); o projeto real vem do GitHub (laramies)
+rm -rf "$BASE/venv-theharvester"; [[ -f $BIN/theHarvester && ! -L $BIN/theHarvester ]] && grep -q venv-theharvester "$BIN/theHarvester" 2>/dev/null && rm -f "$BIN/theHarvester"
+# a branch principal exige Python ≥ 3.14; a 4.11.1 é a última que roda no 3.12 do Ubuntu 24.04
+if [[ ! -x $BIN/theHarvester ]]; then
+  apt-get install -y -qq git >/dev/null 2>&1 || true
+  ok=0
+  for tag in 4.11.1 4.10.1 4.9.2; do
+    if pipx install "git+https://github.com/laramies/theHarvester.git@$tag" >/dev/null 2>&1; then log "  theHarvester $tag instalado (GitHub)"; ok=1; break; fi
+  done
+  [[ $ok -eq 1 ]] || log "  aviso: theHarvester falhou (segue sem ele)"
+fi
 
 baixar_release() { # baixar_release repo padrao_asset destino_binario [arquivo_dentro_do_pacote]
   local repo=$1 padrao=$2 destino=$3 interno=${4:-}

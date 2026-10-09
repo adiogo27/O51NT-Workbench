@@ -79,6 +79,12 @@ Ambiente: Python 3.12+ (`.venv`), Node 22+, Docker opcional (SearXNG em `127.0.0
   (`SEARXNG_BASE_URL`), `model.fallbacks=[openai/gpt-5.5]`. Token do gateway → `/opt/o51nt/.env`. O gateway reescreve o
   `openclaw.json` em JSON: o script lê o token em ambos os formatos e regenera o arquivo inteiro (não usar `sed`).
 - Testes: `FakeOpenClaw` em `tests/conftest.py` (respostas por agent), `tests/integration/test_ia_router.py`, `tests/unit/test_ia_unidades.py`.
+- **Do cartaz para a busca** (`services/convocacoes/busca.py`, rotas `/api/convocacoes/{id}/busca[/ia|/convites|/mencoes]` e
+  `/{id}/monitor`): termos extraídos do OCR (frases entre aspas, locais "na Praça X", siglas, hashtags, menções, datas) →
+  scan de convites abertos (reusa `routers.invites.executar_scan`), menções via SearXNG + deeplinks, monitor contínuo
+  (`ia=True`, canal `nenhum`). IA (`extrator`, prompt `termos_busca`) só enriquece quando o analista clica "Refinar com IA".
+  Frontend: `pages/Convocacoes/Busca.tsx` (botão "Buscar na internet" no cartão da detecção).
+- Ferramentas rodam com `HOME=data/ferramentas_home` (ProtectHome=true no serviço); theHarvester = tag 4.11.1 (a main exige Python 3.14).
 
 ## Implantação na VPS — plano e progresso
 

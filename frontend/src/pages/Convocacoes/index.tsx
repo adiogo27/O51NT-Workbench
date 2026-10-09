@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, Check, ExternalLink, ImageUp, Link2, Megaphone, Newspaper, Play, RefreshCw, ShieldCheck, Trash2, X } from "lucide-react";
+import { CalendarPlus, Check, ExternalLink, ImageUp, Link2, Megaphone, Newspaper, Play, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ErrorText, SearxngStatus } from "@/components/shared";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { cn, formatDate, openExternal } from "@/lib/utils";
 import { SEV_LABEL, SEV_VARIANT } from "@/pages/Alertas";
+import { BuscaDeteccao } from "@/pages/Convocacoes/Busca";
 
 const CAT_LABEL: Record<string, string> = { convocacao: "convocação", nao_pacifico: "não pacífico", temporal: "quando", local: "onde", distribuicao: "distribuição" };
 const CAT_VARIANT: Record<string, "muted" | "default" | "warning" | "danger" | "accent" | "success"> = { convocacao: "default", nao_pacifico: "danger", temporal: "accent", local: "muted", distribuicao: "warning" };
@@ -127,6 +128,7 @@ function StatusStrip() {
 function DeteccaoLinha({ d, destaque }: { d: Deteccao; destaque?: boolean }) {
   const qc = useQueryClient();
   const [aberto, setAberto] = React.useState(!!destaque);
+  const [busca, setBusca] = React.useState(false);
   const confirmar = useMutation({ mutationFn: () => api.post(`/api/convocacoes/${d.id}/confirmar`, { rotulo: "" }), onSuccess: () => inval(qc) });
   const descartar = useMutation({ mutationFn: () => api.post(`/api/convocacoes/${d.id}/descartar`, { motivo: "" }), onSuccess: () => inval(qc) });
   const boletim = useMutation({ mutationFn: () => api.post(`/api/convocacoes/${d.id}/boletim`, { secao: "manifestacao" }), onSuccess: () => inval(qc) });
@@ -176,11 +178,13 @@ function DeteccaoLinha({ d, destaque }: { d: Deteccao; destaque?: boolean }) {
             {d.estado !== "descartada" && <Button size="sm" variant="ghost" disabled={descartar.isPending} onClick={() => descartar.mutate()}><X size={14} /> Descartar</Button>}
             {!d.boletim_item_id ? <Button size="sm" variant="ghost" disabled={boletim.isPending} onClick={() => boletim.mutate()}><Newspaper size={14} /> Boletim</Button> : <Badge variant="success">no boletim #{d.boletim_item_id}</Badge>}
             {!d.agenda_evento_id ? <Button size="sm" variant="ghost" disabled={agenda.isPending} onClick={() => agenda.mutate()}><CalendarPlus size={14} /> Agenda</Button> : <Badge variant="success">agenda #{d.agenda_evento_id}</Badge>}
+            <Button size="sm" variant={busca ? "default" : "outline"} onClick={() => setBusca(!busca)} aria-expanded={busca} title="Termos do cartaz → convites abertos, menções e monitor"><Search size={14} /> Buscar na internet</Button>
             {d.post_url && <Button size="sm" variant="ghost" onClick={() => openExternal(d.post_url)}><ExternalLink size={14} /> Abrir post</Button>}
             <Button size="sm" variant="ghost" onClick={() => setAberto(!aberto)}>{aberto ? "Menos" : "Mais"}</Button>
             <Button size="icon" variant="ghost" aria-label="Excluir detecção" onClick={() => { if (confirm("Excluir esta detecção? A evidência permanece em Evidências.")) remover.mutate(); }}><Trash2 size={14} /></Button>
           </div>
           <ErrorText error={confirmar.error ?? descartar.error ?? boletim.error ?? agenda.error ?? remover.error} />
+          {busca && <BuscaDeteccao d={d} />}
         </div>
       </div>
     </li>

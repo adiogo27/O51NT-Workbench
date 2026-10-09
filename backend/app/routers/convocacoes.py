@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
@@ -39,7 +40,10 @@ from app.schemas.convocacao import (
     ReferenciaOut,
     StatusOut,
 )
-from app.services import evidence_store, scheduler
+from app.models.monitor import Monitor
+from app.schemas.monitor import MonitorOut
+from app.services import evidence_store, radar, scheduler
+from app.services.convocacoes import busca as busca_mod
 from app.services.convocacoes import coleta
 from app.services.convocacoes import imagem as img_mod
 from app.services.convocacoes.analisador import Analise, Entrada, get_analisador
@@ -385,6 +389,96 @@ async def confirmar(det_id: int, dados: ConfirmarIn, session: Session = Depends(
     criar_referencia(session, d, emb, dados.rotulo)
     session.refresh(d)
     return deteccao_out(d)
+
+
+# ------------------------------------------------------------------ do cartaz para a busca (convites, menções, monitor)
+class BuscaConvitesIn(BaseModel):
+    termos: list[str] = Field(min_length=1, max_length=6)
+    engines: list[Literal["duckduckgo", "bing", "startpage"]] = ["duckduckgo", "bing", "startpage"]
+    max_consultas: int = Field(default=2, ge=1, le=4)
+
+
+class BuscaMencoesIn(BaseModel):
+    query: str = Field(min_length=2, max_length=600)
+    engines: list[Literal["duckduckgo", "bing", "startpage"]] = ["duckduckgo", "bing", "startpage"]
+    categorias: list[str] | None = None  # ex.: ["news"]; None = geral
+
+
+class MonitorDeteccaoIn(BaseModel):
+    query: str = Field(min_length=2, max_length=600)
+    nome: str = Field(default="", max_length=120)
+
+
+@router.get("/{det_id}/busca")
+async def termos_busca(det_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Termos extraídos do cartaz (frases, locais, siglas, hashtags) + query de menções + deeplinks. Não gasta tokens."""
+    d = _det(session, det_id)
+    return busca_mod.extrair_termos(busca_mod.texto_da_deteccao(d), d).como_dict()
+
+
+@router.post("/{det_id}/busca/ia")
+async def termos_busca_ia(det_id: int, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Mesmo que GET /busca, enriquecido pelo agent `extrator` do OpenClaw (uma chamada)."""
+    d = _det(session, det_id)
+    texto = busca_mod.texto_da_deteccao(d)
+    tb = await busca_mod.enriquecer_com_ia(busca_mod.extrair_termos(texto, d), texto)
+    return tb.como_dict()
+
+
+@router.post("/{det_id}/busca/convites")
+async def busca_convites(det_id: int, dados: BuscaConvitesIn, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Procura links abertos de WhatsApp/Telegram ligados aos termos do cartaz (SearXNG) e registra em Convites."""
+    from app.routers.invites import executar_scan
+
+    d = _det(session, det_id)
+    saidas = []
+    novos = atualizados = 0
+    for termo in dados.termos:
+        termo = " ".join(termo.split())[:120]
+        if len(termo) < 3:
+            continue
+        r = await executar_scan(session, termo, ["whatsapp", "telegram"], list(dados.engines), dados.max_consultas)
+        novos += r.novos
+        atualizados += r.atualizados
+        saidas.append(r.model_dump(mode="json"))
+    convites = {c["url"]: c for r in saidas for c in r["convites"]}
+    if novos:
+        d.notas = (d.notas + "\n" if d.notas else "") + f"busca de convites: {novos} novo(s) ({', '.join(dados.termos[:3])})"
+        session.add(d)
+        session.commit()
+    return {"deteccao_id": det_id, "termos": dados.termos, "novos": novos, "atualizados": atualizados, "convites": list(convites.values()), "execucoes": [e for r in saidas for e in r["execucoes"]]}
+
+
+@router.post("/{det_id}/busca/mencoes")
+async def busca_mencoes(det_id: int, dados: BuscaMencoesIn, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Menções ao ato na web e nas redes indexadas (SearXNG local) + deeplinks para Google/X/etc."""
+    from app.services.searxng_client import SearxngIndisponivel, get_searxng
+
+    _det(session, det_id)
+    try:
+        res = await get_searxng().buscar(dados.query, tuple(dados.engines), categorias=dados.categorias)
+    except SearxngIndisponivel as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return {"query": dados.query, "url": res.url, "erro": res.erro, "resultados": busca_mod.resultados_busca(res), "engines_sem_resposta": res.engines_sem_resposta, "deeplinks": busca_mod.montar_deeplinks(dados.query)}
+
+
+@router.post("/{det_id}/monitor", response_model=MonitorOut, status_code=201)
+async def criar_monitor_deteccao(det_id: int, dados: MonitorDeteccaoIn, session: Session = Depends(get_session)) -> MonitorOut:
+    """Monitor contínuo com os termos do cartaz: o Radar casa as fontes e o assistente de IA tria (se ligado)."""
+    d = _det(session, det_id)
+    nome = (dados.nome or f"Convocação #{d.id}: {(d.local_evento or d.texto_ocr[:40] or 'cartaz').split('/')[0]}")[:120]
+    mon = Monitor(nome=nome, query=dados.query, canal_alerta="nenhum", radar_modo="termos", tipo="query", ia=True)
+    mon.proxima_execucao = scheduler.proxima_execucao(mon.cron)
+    session.add(mon)
+    session.commit()
+    session.refresh(mon)
+    scheduler.agendar(mon)
+    radar.casar_monitor_cache(session, mon)
+    d.notas = (d.notas + "\n" if d.notas else "") + f"monitor #{mon.id} criado: {dados.query[:120]}"
+    session.add(d)
+    session.commit()
+    total, novos = radar.contagens_hits(session).get(mon.id or -1, (0, 0))
+    return MonitorOut.model_validate(mon, from_attributes=True).model_copy(update={"hits_total": total, "hits_novos": novos})
 
 
 @router.post("/{det_id}/descartar", response_model=DeteccaoOut)

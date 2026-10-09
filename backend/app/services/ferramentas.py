@@ -161,14 +161,17 @@ async def executar(session: Session, ferramenta: str, alvo: str, solicitante: st
         raise ErroFerramenta(503, f"'{f.binario}' não está instalado no servidor (rode deploy/vps/08_ferramentas.sh)")
     alvo_ok = validar_alvo(f.tipo_alvo, alvo, session)
     comando = [binario, *(a.replace("{alvo}", alvo_ok) for a in f.args)]
-    env = {"PATH": _path(), "HOME": os.environ.get("HOME", "/tmp"), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PYTHONIOENCODING": "utf-8", "NO_COLOR": "1", "TERM": "dumb"}
+    # HOME gravável dentro de data/ (o serviço roda com ProtectHome=true; theHarvester/maigret gravam cache e relatórios em $HOME)
+    home = get_settings().data_dir / "ferramentas_home"
+    home.mkdir(parents=True, exist_ok=True)
+    env = {"PATH": _path(), "HOME": str(home), "XDG_DATA_HOME": str(home / ".local/share"), "XDG_CONFIG_HOME": str(home / ".config"), "XDG_CACHE_HOME": str(home / ".cache"), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PYTHONIOENCODING": "utf-8", "NO_COLOR": "1", "TERM": "dumb"}
     t0 = time.monotonic()
     saida = b""
     codigo: int | None = None
     erro: str | None = None
     async with _semaforo:
         try:
-            proc = await asyncio.create_subprocess_exec(*comando, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL, env=env, cwd="/tmp")
+            proc = await asyncio.create_subprocess_exec(*comando, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL, env=env, cwd=str(home))
             try:
                 saida, _ = await asyncio.wait_for(proc.communicate(), timeout=f.timeout_s)
                 codigo = proc.returncode

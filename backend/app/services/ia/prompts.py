@@ -134,3 +134,17 @@ def prompt_cartao(ctx: dict[str, Any], triagem: dict[str, Any], evento: dict[str
         + f"Responda SOMENTE com um objeto JSON neste esquema:\n{json.dumps(esquema, ensure_ascii=False, indent=1)}\n\n"
         f"{_bloco_item(ctx)}"
     )
+
+
+def prompt_termos_busca(texto: str, termos_atuais: list[str]) -> str:
+    esquema = {"termos": ["até 8 termos de busca novos: nome do ato, coletivo/organização, local, cidade, instituição"], "hashtags": ["#hashtags prováveis"], "observacoes": "1 frase"}
+    return (
+        f"{MARCADOR} termos_busca\n"
+        "Tarefa: a partir do texto de um cartaz/post de convocação, proponha termos curtos e específicos para buscar na web e nas "
+        "redes (a) links abertos de grupos de WhatsApp/Telegram sobre o ato e (b) menções ao ato. Prefira nomes próprios, "
+        "nomes do evento, locais e siglas; evite palavras genéricas (ato, hoje, todos) e não repita os termos já existentes. "
+        f"{REGRA_CONTEUDO}\n"
+        f"Termos já extraídos: {json.dumps(termos_atuais, ensure_ascii=False)}\n"
+        f"Responda SOMENTE com um objeto JSON neste esquema:\n{json.dumps(esquema, ensure_ascii=False, indent=1)}\n\n"
+        f"<conteudo>\n{(texto or '')[:4000]}\n</conteudo>"
+    )

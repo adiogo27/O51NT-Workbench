@@ -48,6 +48,19 @@ Também: fail2ban agora lê o log do Caddy e bane (só nas portas 80/443) quem e
 (se o bot estiver configurado) ou no journal do serviço — nesse caso a tela de login avisa e o operador lê com
 `sudo journalctl -u o51nt | grep CODIGO`. O acesso local direto (OpenClaw, health) não passa pelo login.
 
+## Assistente de IA autônomo (adicionado em 2026-10-09, 19h BRT)
+
+O OpenClaw passou a trabalhar os termos dos monitores sem intervenção: o Radar coleta (feeds e, agora, páginas HTML
+sem RSS), só o que casa com os termos dos monitores entra na fila, e a cadeia sentinela → extrator → pesquisador →
+analista produz veredito, evento, verificação e cartão. Alertas e Telegram saem sozinhos; Boletim e Agenda só com
+aprovação (painel **Assistente** ou "aprovar N" no chat do bot). Teto diário de custo, resumo periódico dos itens
+OBSERVAR e auditoria completa em `/ia`. Ferramentas OSINT do Kali (12) instaladas em `/opt/o51nt/ferramentas` e
+expostas em **Ferramentas → Ferramentas OSINT do servidor** e ao agent pesquisador; as sensíveis (holehe, h8mail,
+phoneinfoga) ficam desligadas até serem habilitadas em Tema. Em **Convocações**, cada cartaz tem "Buscar na internet":
+termos lidos → convites abertos de WhatsApp/Telegram, menções na web/redes e monitor contínuo.
+
+Ligar: Tema → Assistente de IA → "Assistente ligado" (padrões: fila a cada 5 min, 25 itens/ciclo, teto US$ 3/dia).
+
 ## Pendência única: gravar as chaves (passo manual, ~2 minutos)
 
 As chaves da Anthropic, da OpenAI, do bot do Telegram e a **senha de app do Gmail (SMTP)** não estão na VM (nem no
