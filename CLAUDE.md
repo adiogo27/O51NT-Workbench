@@ -41,6 +41,16 @@ Ambiente: Python 3.12+ (`.venv`), Node 22+, Docker opcional (SearXNG em `127.0.0
 
 ---
 
+## Autenticação do painel (desde 2026-10-09)
+
+- Ativa só com `O51NT_ADMIN_EMAIL`; sem ela (dev/testes) nada muda e `/api/auth/estado` devolve `ativo:false`.
+- Fluxo: `POST /api/auth/solicitar {email}` (resposta sempre genérica) → código 6 dígitos, 10 min, 5 tentativas, 5 pedidos/15 min,
+  bloqueio 15 min após 5 falhas (e-mail) ou 20 (IP) → `POST /api/auth/verificar` → cookie `o51nt_sessao` (HttpOnly, Secure,
+  SameSite=Strict; 12 h, inatividade 2 h). Mutações exigem `X-Requested-With: O51NT` (já no `api.ts`).
+- Admin: `/api/auth/usuarios` (GET/POST/PATCH/DELETE), `/api/auth/eventos`; regras: não rebaixar/remover a si nem o último admin.
+- Testes com auth: fixture `cliente_auth` em `backend/tests/integration/test_auth_router.py` (captura os códigos em vez de enviar e-mail).
+- Segredos de SMTP (`SMTP_HOST/PORT/USER/PASSWORD/FROM`) só no `.env` da VPS via `segredos.sh`.
+
 ## Implantação na VPS — plano e progresso
 
 **Alvo**: VM InterServer `vps3700295` → **`162.35.16.238`** (o `162.35.16.238` é a VM; `216.158.228.164` é
@@ -63,6 +73,7 @@ IA = **OpenClaw** na VM (openclaw.ai, OpenClaw Foundation) com agents definidos,
 | 6 | **OpenClaw** em usuário próprio (`openclaw`), daemon systemd, canal Telegram, agents O51NT | ✅ 2026-10-09 (LLM/Telegram ativam ao gravar as chaves) | `deploy/vps/05_openclaw.sh`. OpenClaw 2026.9.9, gateway `127.0.0.1:18789` (token), serviço de usuário `openclaw-gateway` (linger), agents `analista`/`sentinela` com skill `o51nt-api`, `tools.deny` exec/browser, Telegram allowlist 371824016, `tools.sessions.visibility=agent`, `agentToAgent` off. Armadilhas: rodar `openclaw` com `cd ~openclaw` (EACCES na sondagem do Node); o drop-in systemd só pode existir DEPOIS de `gateway install --force` |
 | 7 | Fechamento SSH: `PermitRootLogin no`, `PasswordAuthentication no` | ✅ 2026-10-09 | `deploy/vps/06_ssh.sh` → `/etc/ssh/sshd_config.d/90-o51nt.conf` (`AllowUsers o51nt`). Validado: `o51nt` por chave + sudo OK; root e senha recusados |
 | 8 | Verificação ponta a ponta + relatório (`deploy/vps/RELATORIO_IMPLANTACAO.md`) | ✅ 2026-10-09 | Todos os serviços ativos, watchdog vivo, HTTPS 401/200/403, ciclo do Radar OK, 0 erros no journal. **Pendência única:** chaves (Anthropic/OpenAI/Telegram) ainda não gravadas → `sudo bash /opt/o51nt/app/deploy/vps/segredos.sh` na VM (interativo). Até lá Telegram e LLM do OpenClaw ficam inativos |
+| 9 | **Login do painel**: e-mail autorizado + código de uso único; usuários só por admin; auditoria; fail2ban no Caddy; preparação Cloudflare | ✅ 2026-10-09 (SMTP pendente: até lá o código cai no journal) | Admin `adiogo27@gmail.com` (`O51NT_ADMIN_EMAIL` no `.env`). Código: `backend/app/{services/auth.py,middleware_auth.py,routers/auth.py,models/auth.py}`, `frontend/src/{lib/auth.tsx,pages/Login,pages/Usuarios}`. Entrega do código: SMTP → Telegram do usuário → journal. Isenção: acesso loopback **sem** `X-Forwarded-For` (OpenClaw/health). Anti-CSRF: cookie `SameSite=Strict` + `X-Requested-With: O51NT`. Caddy: basic auth mantida como 1ª camada, `confiaveis.caddy`, `X-Real-IP`, CSP em modo relatório; jail `o51nt-caddy`. Cloudflare: `07_cloudflare.sh` (faixas + `--fechar`) e `CLOUDFLARE.md` (passos no painel do dono: DNS proxied, WAF, rate limit, Zero Trust Access com PIN por e-mail) |
 
 Arquivos de implantação versionados em `deploy/vps/` (scripts idempotentes; segredos só na VM).
 

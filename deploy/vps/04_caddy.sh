@@ -47,7 +47,8 @@ backend  = polling
 maxretry = 8
 findtime = 10m
 bantime  = 2h
-action   = ufw
+# banimento só em 80/443: um erro de código nunca bloqueia o SSH do admin
+action   = iptables-multiport[name=o51nt-caddy, port="http,https"]
 EOF
 systemctl reload fail2ban || systemctl restart fail2ban
 echo "  fail2ban o51nt-caddy: $(fail2ban-client status o51nt-caddy 2>/dev/null | grep -c 'Currently banned' | sed 's/1/ativo/;s/0/INATIVO/')"

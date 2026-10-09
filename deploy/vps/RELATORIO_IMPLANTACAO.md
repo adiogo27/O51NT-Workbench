@@ -27,23 +27,47 @@ Portas expostas à internet: 22, 80, 443. Tudo o mais (8051, 8080, 18789, 2019) 
 - SSH: `ssh o51nt@162.35.16.238` (chave já autorizada). `sudo` sem senha.
 - OpenClaw: `sudo -iu openclaw` e depois `openclaw status`, `openclaw health`, `openclaw security audit`.
 
-## Pendência única: gravar as chaves (passo manual, ~1 minuto)
+## Login do painel (adicionado em 2026-10-09, 18h BRT)
 
-As chaves da Anthropic, da OpenAI e do bot do Telegram **não estão na VM** (nem no repositório, de propósito).
-Sem elas o painel funciona normalmente, mas o canal Telegram e as respostas do OpenClaw ficam inativos.
+Três camadas independentes, todas verificadas ao vivo:
+
+1. **Senha básica do Caddy** (já existente) — credenciais em `/root/o51nt-credenciais.txt`.
+2. **Login do O51NT**: e-mail autorizado + código de 6 dígitos de uso único (10 min, 5 tentativas). Administrador inicial:
+   `adiogo27@gmail.com`. Só administradores cadastram usuários (menu **Usuários**), com auditoria de cada pedido,
+   acerto, erro, bloqueio e alteração (e-mail, IP, horário). Bloqueio de 15 min após 5 erros por e-mail (20 por IP);
+   sessão de 12 h, encerrada após 2 h sem uso; cookie HttpOnly/Secure/SameSite=Strict; anti-CSRF por cabeçalho.
+   Respostas nunca revelam se um e-mail existe.
+3. **Cloudflare (opcional, feito na conta do dono)** — WAF, rate limit no login e **Zero Trust Access** com PIN por
+   e-mail antes de chegar ao servidor. Passo a passo em `deploy/vps/CLOUDFLARE.md`; o servidor já confia nos IPs da
+   Cloudflare e `07_cloudflare.sh --fechar` deixa o firewall aceitando só a Cloudflare.
+
+Também: fail2ban agora lê o log do Caddy e bane (só nas portas 80/443) quem erra a senha básica ou o código de login
+8 vezes em 10 min; cabeçalhos `Permissions-Policy`, `Cross-Origin-*` e CSP em modo relatório.
+
+**Entrega do código**: por e-mail (SMTP). Enquanto o SMTP não estiver configurado, o código cai no Telegram do usuário
+(se o bot estiver configurado) ou no journal do serviço — nesse caso a tela de login avisa e o operador lê com
+`sudo journalctl -u o51nt | grep CODIGO`. O acesso local direto (OpenClaw, health) não passa pelo login.
+
+## Pendência única: gravar as chaves (passo manual, ~2 minutos)
+
+As chaves da Anthropic, da OpenAI, do bot do Telegram e a **senha de app do Gmail (SMTP)** não estão na VM (nem no
+repositório, de propósito). Sem elas o painel funciona, mas o canal Telegram e o OpenClaw ficam inativos e o código de
+login não chega por e-mail. Para o Gmail: verificação em 2 etapas ativa → <https://myaccount.google.com/apppasswords>
+→ criar senha de app "O51NT" (16 letras) e informá-la ao script.
 
 ```bash
 ssh o51nt@162.35.16.238
 sudo bash /opt/o51nt/app/deploy/vps/segredos.sh
 ```
 
-O script pergunta os três valores com digitação oculta (Enter em branco mantém o atual), grava em
+O script pergunta as chaves e os dados de SMTP (senhas com digitação oculta; Enter mantém o atual), grava em
 `/opt/o51nt/.env` e em `/home/openclaw/.openclaw/{secrets.env,telegram.token}`, reinicia os serviços e envia uma
 mensagem de teste para o chat 371824016 (@alertao51ntbot). Depois disso:
 
 - em **Tema → Telegram** no painel o card mostra "configurado" e o botão de teste;
 - os monitores aceitam `canal_alerta = telegram` (até lá a API devolve 422, por contrato);
-- o OpenClaw responde no Telegram (DM do chat autorizado) como o agent `analista`.
+- o OpenClaw responde no Telegram (DM do chat autorizado) como o agent `analista`;
+- o login do painel passa a enviar o código por e-mail (`/api/auth/estado` mostra `canal: email`).
 
 ## Layout na VM
 
@@ -68,8 +92,9 @@ mensagem de teste para o chat 371824016 (@alertao51ntbot). Depois disso:
 | 3 | `03_o51nt.sh` | `o51nt` | clone/pull, venv, build do frontend, SearXNG, `o51nt.service`, backup. **Reexecutar para atualizar.** |
 | 4 | `04_caddy.sh` | root | credenciais, Caddyfile, HTTPS |
 | 5 | `05_openclaw.sh` | root | usuário `openclaw`, OpenClaw, agents, gateway como serviço de usuário |
-| 6 | `segredos.sh` | root (interativo) | grava as chaves e testa o Telegram |
+| 6 | `segredos.sh` | root (interativo) | grava as chaves, o SMTP do login e testa o Telegram |
 | 7 | `06_ssh.sh` | root | fecha root/senha no SSH |
+| 8 | `07_cloudflare.sh [--fechar]` | root | faixas da Cloudflare no Caddy; `--fechar` restringe 80/443 à Cloudflare (ver `CLOUDFLARE.md`) |
 
 ## Operação
 
