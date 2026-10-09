@@ -22,6 +22,9 @@ sed -e "s|__USUARIO__|$USUARIO|" -e "s|__HASH__|$HASH|" "$APP/deploy/vps/Caddyfi
 caddy validate --config /etc/caddy/Caddyfile.novo --adapter caddyfile >/dev/null
 mv /etc/caddy/Caddyfile.novo /etc/caddy/Caddyfile
 caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null 2>&1 || true
+# `caddy validate` como root cria o arquivo de log com dono root; devolve ao usuário do serviço.
+install -d -m 750 -o caddy -g caddy /var/log/caddy
+chown -R caddy:caddy /var/log/caddy
 systemctl reload caddy || systemctl restart caddy
 
 log "aguardando certificado…"
