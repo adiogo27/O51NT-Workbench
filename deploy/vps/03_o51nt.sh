@@ -26,6 +26,9 @@ log "venv + dependências Python"
 [[ -x "$VENV/bin/python" ]] || python3 -m venv "$VENV"
 "$VENV/bin/pip" install -q --upgrade pip
 "$VENV/bin/pip" install -q -r "$APP/requirements.txt"
+# OCR do módulo Convocações (rapidocr + onnxruntime + opencv). opencv-python precisa de libGL/libglib no servidor.
+sudo apt-get install -y -qq libgl1 libglib2.0-0t64 >/dev/null 2>&1 || sudo apt-get install -y -qq libgl1 libglib2.0-0 >/dev/null 2>&1 || true
+"$VENV/bin/pip" install -q -r "$APP/requirements-cv.txt"
 # Chromium do Playwright (scraper com JS: OneMillionTweetMap/Convocações). Falha não é fatal.
 if [[ ! -d "$HOME/.cache/ms-playwright" ]]; then
   log "Chromium do Playwright (uma vez)"
