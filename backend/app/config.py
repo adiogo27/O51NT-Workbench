@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -27,6 +28,11 @@ class Settings(BaseSettings):
     searxng_url: str = "http://127.0.0.1:8080"
     models_dir_override: Path | None = None
     max_download_mb: int = 15  # imagens/fotos baixadas pelos coletores
+    # Telegram (canal de alerta opcional). Aceita TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID sem o prefixo O51NT_,
+    # porque é assim que ficam no .env da VPS. Segredos nunca entram no repositório.
+    telegram_bot_token: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
+    telegram_chat_id: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_ID"))
+    telegram_api_base: str = "https://api.telegram.org"
 
     @property
     def db_path(self) -> Path:

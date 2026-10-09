@@ -296,7 +296,7 @@ export interface Preferencias {
   convocacoesMaxImagensCiclo: number;
   convocacoesDescarregarMin: number;
   convocacoesAnalisarFeeds: boolean;
-  convocacoesCanalAlerta: "jsonl" | "webhook" | "nenhum";
+  convocacoesCanalAlerta: "jsonl" | "webhook" | "telegram" | "nenhum";
   convocacoesWebhookUrl: string | null;
   convocacoesRetencaoDias: number;
   // Convites

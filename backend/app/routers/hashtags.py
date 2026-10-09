@@ -11,7 +11,7 @@ from sqlmodel import Session, col, select
 from app.db import get_session
 from app.models.hashtag import Hashtag, HashtagSnapshot
 from app.models.monitor import Monitor
-from app.services import hashtag_tracker, query_compose, radar, scheduler
+from app.services import alerts, hashtag_tracker, query_compose, radar, scheduler
 from app.services.scraper import get_scraper
 
 router = APIRouter(prefix="/api/hashtags", tags=["hashtags"])
@@ -53,7 +53,7 @@ class SnapshotOut(BaseModel):
 class TrackIn(BaseModel):
     tag: str = Field(min_length=2, max_length=120)
     cron: str = "0 */3 * * *"
-    canal_alerta: Literal["jsonl", "webhook", "nenhum"] = "jsonl"
+    canal_alerta: Literal["jsonl", "webhook", "telegram", "nenhum"] = "jsonl"
     webhook_url: str | None = None
 
 
@@ -161,6 +161,8 @@ async def rastrear(dados: TrackIn, session: Session = Depends(get_session)) -> H
         scheduler.validar_cron(dados.cron)
     except ValueError as exc:
         raise HTTPException(422, f"cron inválido: {exc}") from exc
+    if dados.canal_alerta == "telegram" and not alerts.telegram_configurado():
+        raise HTTPException(422, alerts.TELEGRAM_NAO_CONFIGURADO)
     tag = hashtag_tracker.normalizar_tag(dados.tag)
     mon = Monitor(
         nome=f"Hashtag {tag}",

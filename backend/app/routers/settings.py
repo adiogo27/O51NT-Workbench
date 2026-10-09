@@ -83,3 +83,42 @@ async def resetar() -> AppSettings:
 async def navegadores() -> dict:
     return {"disponiveis": [b for b in NAVEGADORES if shutil.which(b)]}
 
+
+# ------------------------------------------------------------------ Telegram (segredos só no .env; aqui só status)
+def _mascarar(chat_id: str | None) -> str | None:
+    if not chat_id:
+        return None
+    return chat_id if len(chat_id) <= 4 else f"{'*' * (len(chat_id) - 3)}{chat_id[-3:]}"
+
+
+@router.get("/telegram")
+async def telegram_status() -> dict:
+    from app.services import alerts
+
+    s = get_settings()
+    info: dict = {"configurado": alerts.telegram_configurado(), "chat_id": _mascarar(s.telegram_chat_id), "bot": None, "erro": None}
+    if s.telegram_bot_token:
+        try:
+            me = await alerts.telegram_get_me()
+            info["bot"] = me.get("username") if me.get("ok") else None
+            info["erro"] = None if me.get("ok") else me.get("erro")
+        except Exception as exc:  # rede fora; não derruba a tela
+            info["erro"] = f"sem acesso à API do Telegram: {exc}"
+    else:
+        info["erro"] = alerts.TELEGRAM_NAO_CONFIGURADO
+    return info
+
+
+@router.post("/telegram/teste")
+async def telegram_teste() -> dict:
+    """Envia uma mensagem de teste ao chat configurado."""
+    from app.services import alerts
+
+    if not alerts.telegram_configurado():
+        return {"ok": False, "erro": alerts.TELEGRAM_NAO_CONFIGURADO}
+    evento = {"tipo": "teste", "titulo": "Teste de alerta do O51NT Workbench", "resumo": "Se você leu isto, o canal Telegram está funcionando."}
+    try:
+        return await alerts.enviar_telegram(alerts.formatar_telegram(evento))
+    except Exception as exc:
+        return {"ok": False, "status": 0, "erro": str(exc)}
+

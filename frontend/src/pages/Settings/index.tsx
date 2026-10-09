@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { RotateCcw, Save } from "lucide-react";
 import * as React from "react";
 import { ErrorText } from "@/components/shared";
@@ -20,6 +20,49 @@ const PRESETS: Record<string, AppSettings["tema"]> = {
   "Alto contraste": { primary: "#ffff00", secondary: "#000000", background: "#000000", foreground: "#ffffff", accent: "#00ffff", radius: 0 },
   Terminal: { primary: "#22c55e", secondary: "#0a0a0a", background: "#050505", foreground: "#d1fae5", accent: "#facc15", radius: 0.25 },
 };
+
+interface TelegramStatus {
+  configurado: boolean;
+  chat_id: string | null;
+  bot: string | null;
+  erro: string | null;
+}
+
+/** Status do canal Telegram. O token e o chat ID ficam só no .env do servidor — aqui não se edita nada. */
+function TelegramCard() {
+  const { data, isLoading, refetch } = useQuery({ queryKey: ["telegram-status"], queryFn: () => api.get<TelegramStatus>("/api/settings/telegram") });
+  const teste = useMutation({ mutationFn: () => api.post<{ ok: boolean; message_id?: number; erro?: string }>("/api/settings/telegram/teste") });
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle>Alertas no Telegram</CardTitle>
+      {isLoading || !data ? (
+        <p className="text-sm text-muted-foreground">Verificando…</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Badge variant={data.configurado ? "success" : "muted"}>{data.configurado ? "configurado" : "não configurado"}</Badge>
+          {data.bot && <span>bot <strong>@{data.bot}</strong></span>}
+          {data.chat_id && <span className="code text-xs">chat {data.chat_id}</span>}
+          {data.erro && <span className="text-warning">{data.erro}</span>}
+          <span className="flex-1" />
+          <Button size="sm" variant="outline" onClick={() => void refetch()}>Atualizar</Button>
+          <Button size="sm" disabled={!data.configurado || teste.isPending} onClick={() => teste.mutate()}>
+            {teste.isPending ? "Enviando…" : "Enviar mensagem de teste"}
+          </Button>
+        </div>
+      )}
+      {teste.data && (
+        <div className="mt-2">
+          <Alert variant={teste.data.ok ? "success" : "error"}>{teste.data.ok ? `Mensagem enviada (id ${teste.data.message_id}).` : `Falhou: ${teste.data.erro}`}</Alert>
+        </div>
+      )}
+      <ErrorText error={teste.error} />
+      <p className="mt-2 text-xs text-muted-foreground">
+        Configuração: <span className="code">TELEGRAM_BOT_TOKEN</span> e <span className="code">TELEGRAM_CHAT_ID</span> no arquivo <span className="code">.env</span> do servidor (reinicie o serviço).
+        Depois escolha o canal "Telegram" nos monitores, na Agenda, nos perfis ou nas Convocações.
+      </p>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { settings, save } = useSettingsStore();
@@ -119,6 +162,7 @@ export default function SettingsPage() {
             </div>
           </div>
         </Card>
+        <TelegramCard />
         <Card className="lg:col-span-2">
           <CardTitle>Convocações (detector de cartazes)</CardTitle>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -133,7 +177,7 @@ export default function SettingsPage() {
             <Field label="Limiar de alerta (score)" htmlFor="conv-la"><Input id="conv-la" type="number" min={1} max={100} value={draft.preferencias.convocacoesLimiarAlerta} onChange={(e) => setPref("convocacoesLimiarAlerta", Number(e.target.value))} /></Field>
             <Field label="Limiar crítico (score)" htmlFor="conv-lc"><Input id="conv-lc" type="number" min={1} max={100} value={draft.preferencias.convocacoesLimiarCritico} onChange={(e) => setPref("convocacoesLimiarCritico", Number(e.target.value))} /></Field>
             <Field label="Canal de alerta" htmlFor="conv-canal">
-              <Select id="conv-canal" value={draft.preferencias.convocacoesCanalAlerta} onChange={(e) => setPref("convocacoesCanalAlerta", e.target.value as "jsonl" | "webhook" | "nenhum")}><option value="jsonl">JSONL (data/alerts)</option><option value="webhook">webhook</option><option value="nenhum">só inbox</option></Select>
+              <Select id="conv-canal" value={draft.preferencias.convocacoesCanalAlerta} onChange={(e) => setPref("convocacoesCanalAlerta", e.target.value as "jsonl" | "webhook" | "telegram" | "nenhum")}><option value="jsonl">JSONL (data/alerts)</option><option value="webhook">webhook</option><option value="telegram">Telegram</option><option value="nenhum">só inbox</option></Select>
             </Field>
             <Field label="Webhook URL" htmlFor="conv-wh"><Input id="conv-wh" value={draft.preferencias.convocacoesWebhookUrl ?? ""} onChange={(e) => setPref("convocacoesWebhookUrl", e.target.value || null)} placeholder="https://…" /></Field>
             <Field label="Peso léxico" htmlFor="p-lex"><Input id="p-lex" type="number" step={0.05} min={0} max={1} value={draft.preferencias.convocacoesPesoLexico} onChange={(e) => setPref("convocacoesPesoLexico", Number(e.target.value))} /></Field>

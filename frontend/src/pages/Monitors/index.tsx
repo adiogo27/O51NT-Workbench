@@ -324,6 +324,7 @@ function NovoMonitor() {
           <Select id="mcanal" value={f.canal_alerta} onChange={(e) => setF({ ...f, canal_alerta: e.target.value })}>
             <option value="jsonl">Arquivo JSONL (data/alerts/)</option>
             <option value="webhook">Webhook HTTP</option>
+            <option value="telegram">Telegram (bot configurado no .env)</option>
             <option value="nenhum">Nenhum</option>
           </Select>
         </Field>

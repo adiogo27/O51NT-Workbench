@@ -146,6 +146,6 @@ class AgendaQueriesOut(BaseModel):
 
 class AgendaMonitorIn(BaseModel):
     cron: str = "0 */2 * * *"
-    canal_alerta: Literal["jsonl", "webhook", "nenhum"] = "jsonl"
+    canal_alerta: Literal["jsonl", "webhook", "telegram", "nenhum"] = "jsonl"
     webhook_url: str | None = None
     usar_x: bool = False

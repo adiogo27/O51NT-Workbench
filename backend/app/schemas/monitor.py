@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-CanalAlerta = Literal["jsonl", "webhook", "nenhum"]
+CanalAlerta = Literal["jsonl", "webhook", "telegram", "nenhum"]
 TipoMonitor = Literal["query", "hashtag"]
 
 

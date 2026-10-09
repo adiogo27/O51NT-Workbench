@@ -1,0 +1,44 @@
+# /etc/caddy/Caddyfile — O51NT Workbench atrás do Caddy (HTTPS automático via Let's Encrypt + autenticação básica).
+# O app segue só em 127.0.0.1:8051; nada é exposto sem senha. __HASH__ é trocado pelo 04_caddy.sh (bcrypt).
+{
+	email adiogo27@gmail.com
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+o51nt.sentinela.api.br {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	basic_auth {
+		__USUARIO__ __HASH__
+	}
+	# uploads de evidências/imagens: 50 MB como no app
+	request_body {
+		max_size 60MB
+	}
+	reverse_proxy 127.0.0.1:8051 {
+		header_up X-Forwarded-Proto {scheme}
+		transport http {
+			read_timeout 120s
+		}
+	}
+	log {
+		output file /var/log/caddy/o51nt.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# Acesso direto pelo IP (sem certificado): recusa em vez de expor o app.
+http://162.35.16.238 {
+	respond "O51NT Workbench: use https://o51nt.sentinela.api.br" 403
+}

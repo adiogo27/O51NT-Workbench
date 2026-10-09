@@ -17,7 +17,7 @@ from app.models.monitor import Monitor
 from app.schemas.boletim import PerfilDeeplinksOut, PerfilIn, PerfilMonitorIn, PerfilOut, PerfilPatch
 from app.schemas.monitor import MonitorOut
 from app.services import boletim as svc
-from app.services import query_compose, scheduler
+from app.services import alerts, query_compose, scheduler
 
 router = APIRouter(prefix="/api/perfis", tags=["perfis"])
 
@@ -130,6 +130,8 @@ async def monitorar(perfil_id: int, dados: PerfilMonitorIn, session: Session = D
         scheduler.validar_cron(dados.cron)
     except ValueError as exc:
         raise HTTPException(422, f"cron inválido: {exc}") from exc
+    if dados.canal_alerta == "telegram" and not alerts.telegram_configurado():
+        raise HTTPException(422, alerts.TELEGRAM_NAO_CONFIGURADO)
     if dados.canal_alerta == "webhook" and not (dados.webhook_url or "").startswith(("http://", "https://")):
         raise HTTPException(422, "webhook_url obrigatório (http/https) para canal webhook")
     usar_x = dados.usar_x if dados.usar_x is not None else p.rede == "x"

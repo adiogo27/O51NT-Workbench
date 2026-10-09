@@ -1,0 +1,41 @@
+# /etc/systemd/system/o51nt.service — O51NT Workbench (FastAPI/uvicorn) com watchdog do systemd.
+[Unit]
+Description=O51NT Workbench (backend + frontend estático)
+Documentation=https://github.com/adiogo27/O51NT-Workbench
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=o51nt
+Group=o51nt
+WorkingDirectory=/opt/o51nt/app/backend
+EnvironmentFile=-/opt/o51nt/.env
+Environment=O51NT_DATA_DIR=/opt/o51nt/data
+Environment=O51NT_STATIC_DIR=/opt/o51nt/app/backend/static
+Environment=O51NT_HOST=127.0.0.1
+Environment=O51NT_PORT=8051
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/o51nt/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8051 --log-level info --no-access-log
+# Watchdog: o app envia WATCHDOG=1 a cada 30 s (app/sdnotify.py); sem heartbeat por 90 s o systemd reinicia.
+WatchdogSec=90
+TimeoutStartSec=120
+TimeoutStopSec=30
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+# Endurecimento
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/o51nt
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LimitNOFILE=65536
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

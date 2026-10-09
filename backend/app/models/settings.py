@@ -41,7 +41,7 @@ class Preferencias(BaseModel):
     convocacoesMaxImagensCiclo: int = Field(default=40, ge=1, le=500)
     convocacoesDescarregarMin: int = Field(default=10, ge=1, le=240)
     convocacoesAnalisarFeeds: bool = True
-    convocacoesCanalAlerta: Literal["jsonl", "webhook", "nenhum"] = "jsonl"
+    convocacoesCanalAlerta: Literal["jsonl", "webhook", "telegram", "nenhum"] = "jsonl"
     convocacoesWebhookUrl: str | None = None
     convocacoesRetencaoDias: int = Field(default=180, ge=0, le=36500)  # poda detecções descartadas; 0 = nunca
     # Convites

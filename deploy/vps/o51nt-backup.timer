@@ -1,0 +1,10 @@
+[Unit]
+Description=Agenda o backup diário do O51NT (03:30, horário local)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

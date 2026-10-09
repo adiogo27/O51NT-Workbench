@@ -56,7 +56,7 @@ class PerfilDeeplinksOut(BaseModel):
 
 class PerfilMonitorIn(BaseModel):
     cron: str = "0 */3 * * *"
-    canal_alerta: Literal["jsonl", "webhook", "nenhum"] = "jsonl"
+    canal_alerta: Literal["jsonl", "webhook", "telegram", "nenhum"] = "jsonl"
     webhook_url: str | None = None
     usar_x: bool | None = None  # None → X se o perfil for do X
 

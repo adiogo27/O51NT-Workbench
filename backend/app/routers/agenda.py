@@ -22,7 +22,7 @@ from app.schemas.agenda import (
 )
 from app.schemas.monitor import MonitorOut
 from app.services import agenda as svc
-from app.services import query_compose, scheduler
+from app.services import alerts, query_compose, scheduler
 
 router = APIRouter(prefix="/api/agenda", tags=["agenda"])
 
@@ -216,6 +216,8 @@ async def monitorar(evento_id: int, dados: AgendaMonitorIn, session: Session = D
         scheduler.validar_cron(dados.cron)
     except ValueError as exc:
         raise HTTPException(422, f"cron inválido: {exc}") from exc
+    if dados.canal_alerta == "telegram" and not alerts.telegram_configurado():
+        raise HTTPException(422, alerts.TELEGRAM_NAO_CONFIGURADO)
     if dados.canal_alerta == "webhook" and not (dados.webhook_url or "").startswith(("http://", "https://")):
         raise HTTPException(422, "webhook_url obrigatório (http/https) para canal webhook")
     mon = Monitor(

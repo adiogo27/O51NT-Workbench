@@ -8,7 +8,7 @@ from sqlmodel import Session, col, select
 from app.db import get_session
 from app.models.monitor import Monitor, MonitorRun
 from app.schemas.monitor import MonitorIn, MonitorOut, MonitorPatch, MonitorRunOut
-from app.services import radar, scheduler
+from app.services import alerts, radar, scheduler
 
 router = APIRouter(prefix="/api/monitors", tags=["monitors"])
 
@@ -33,6 +33,8 @@ def _validar(cron: str, canal: str, webhook_url: str | None) -> None:
         raise HTTPException(422, f"cron inválido: {exc}") from exc
     if canal == "webhook" and not (webhook_url or "").startswith(("http://", "https://")):
         raise HTTPException(422, "webhook_url obrigatório (http/https) para canal webhook")
+    if canal == "telegram" and not alerts.telegram_configurado():
+        raise HTTPException(422, alerts.TELEGRAM_NAO_CONFIGURADO)
 
 
 def _get(session: Session, monitor_id: int) -> Monitor:

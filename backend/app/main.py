@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlmodel import Session
 
-from app import __version__
+from app import __version__, sdnotify
 from app.config import get_settings
 from app.db import get_engine, init_db
 from app.logging_config import configure_logging
@@ -40,7 +40,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if s.scheduler_enabled:
         scheduler.iniciar()
     logger.info("O51NT Workbench iniciado", extra={"dados": {"versao": __version__, "porta": s.port}})
+    sdnotify.notify("READY=1")  # systemd Type=notify (no-op fora do systemd)
+    watchdog = sdnotify.iniciar_watchdog()
     yield
+    sdnotify.notify("STOPPING=1")
+    if watchdog is not None:
+        watchdog.cancel()
     scheduler.parar()
     await shutdown_scraper()
     await shutdown_searxng()

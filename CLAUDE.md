@@ -55,11 +55,11 @@ IA = **OpenClaw** na VM (openclaw.ai, OpenClaw Foundation) com agents definidos,
 | # | Etapa | Status | Observações |
 |---|---|---|---|
 | 0 | Recon da VM e DNS | ✅ 2026-10-09 | VM limpa (só sshd), 40 updates pendentes, UFW/fail2ban ausentes, root+senha liberados |
-| 1 | Endurecimento: updates, timezone, usuário `o51nt`+sudo+chave, UFW 22/80/443, fail2ban, unattended-upgrades | ⬜ | root/senha só desligam após login do `o51nt` validado |
-| 2 | Dependências: Node 22, Docker (SearXNG), Caddy | ⬜ | |
+| 1 | Endurecimento: updates, timezone, usuário `o51nt`+sudo+chave, UFW 22/80/443, fail2ban, unattended-upgrades | ✅ 2026-10-09 | `deploy/vps/01_endurecer.sh`; `/opt/o51nt` criado (dono `o51nt`, `.env` 600); reboot após kernel |
+| 2 | Dependências: Node 24, Docker (SearXNG), Caddy | ✅ 2026-10-09 | `deploy/vps/02_dependencias.sh`. Repo apt do Caddy (Cloudsmith) deu 402 → binário oficial do GitHub Releases (v2.11.7) + unit systemd oficial; Docker com `"ip": "127.0.0.1"` para não furar o UFW |
 | 3 | O51NT em `/opt/o51nt`: clone, venv, build, systemd `o51nt.service` com `WatchdogSec` + `sd_notify`, backup diário de `data/` | ⬜ | app continua em `127.0.0.1:8051` |
 | 4 | Caddy: HTTPS automático + basic auth → proxy `127.0.0.1:8051` | ⬜ | credenciais entregues ao dono fora do repo |
-| 5 | Canal de alerta **Telegram** (monitores/Radar/Convocações) lendo `.env`; testes | ⬜ | aditivo aos canais jsonl/webhook |
+| 5 | Canal de alerta **Telegram** (monitores/Radar/Convocações) lendo `.env`; testes | ✅ código 2026-10-09 (teste ao vivo pendente da chave no `.env`) | `services/alerts.py` (`telegram`, HTML, JSONL preservado), `GET/POST /api/settings/telegram[/teste]`, card em Tema; `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` aceitos sem prefixo; 422 se canal telegram sem token. `app/sdnotify.py` (READY/WATCHDOG/STOPPING) |
 | 6 | **OpenClaw** em usuário próprio (`openclaw`), daemon systemd, canal Telegram, agents O51NT | ⬜ | chaves de API serão enviadas pelo dono depois |
 | 7 | Fechamento SSH: `PermitRootLogin no`, `PasswordAuthentication no` | ⬜ | só após etapa 1 validada |
 | 8 | Verificação ponta a ponta + relatório (`deploy/vps/RELATORIO_IMPLANTACAO.md`) | ⬜ | health via HTTPS, ciclo do Radar, alerta no Telegram, `./test.sh` verde |

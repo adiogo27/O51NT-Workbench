@@ -1,0 +1,10 @@
+[Unit]
+Description=Backup diário do O51NT Workbench (SQLite + data/)
+
+[Service]
+Type=oneshot
+User=o51nt
+Group=o51nt
+ExecStart=/opt/o51nt/backup.sh
+Nice=10
+IOSchedulingClass=idle
