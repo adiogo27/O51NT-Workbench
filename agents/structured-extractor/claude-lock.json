@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "resources": {
+    "./agents/structured-extractor.md": {
+      "kind": "agent",
+      "id": "agent_01NnUfjw17N6tJLYwtR5epMY",
+      "version": "1",
+      "hash": ""
+    }
+  }
+}

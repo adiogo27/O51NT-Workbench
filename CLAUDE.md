@@ -38,6 +38,9 @@ Ambiente: Python 3.12+ (`.venv`), Node 22+, Docker opcional (SearXNG em `127.0.0
 - Hashtags casam sem acento/caixa (diverge do X de propósito; formas originais preservadas e exibidas).
 - OneMillionTweetMap encerrado (HTML público sem hashtags). Google Notícias sem RSS (robots) → assistido.
 - Scheduler: jobs em memória reconstruídos da tabela `monitor`; job global `radar-ciclo`.
+- `agents/` (quickstarts de Managed Agents da Claude Platform): `deep-researcher` e `structured-extractor` foram portados
+  para os agents `pesquisador` e `extrator` do OpenClaw na VPS; `field-monitor` não serve (blogs de IA → Notion).
+  Ver `agents/README-O51NT.md`. Não há integração com a nuvem de Managed Agents.
 
 ---
 

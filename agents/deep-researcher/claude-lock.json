@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "resources": {
+    "./agents/deep-researcher.md": {
+      "kind": "agent",
+      "id": "agent_01YY7D4boaEDa22mkSGpJagb",
+      "version": "1",
+      "hash": ""
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "resources": {
+    "./agents/field-monitor.md": {
+      "kind": "agent",
+      "id": "agent_01HzA8VbtYKfw4nx3EEbrzMg",
+      "version": "1",
+      "hash": ""
+    },
+    "./environments/field-monitor-env.yml": {
+      "kind": "environment",
+      "id": "env_01VmpVcKZkKww8f91sFvPDch",
+      "hash": ""
+    }
+  }
+}
