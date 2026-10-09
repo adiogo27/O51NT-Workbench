@@ -39,6 +39,10 @@ logger = logging.getLogger("o51nt.ia")
 ULTIMO_CICLO: dict[str, Any] | None = None
 MAX_TENTATIVAS = 3
 CAMPO_JSON = {"triagem": "triagem_json", "extracao": "evento_json", "pesquisa": "pesquisa_json", "cartao": "cartao_json"}
+# agent do OpenClaw por etapa: sentinela/extrator/redator são enxutos (sem ferramentas, sem raciocínio longo);
+# o `analista` fica para a conversa no Telegram
+AGENTS = {"triagem": "sentinela", "extracao": "extrator", "pesquisa": "pesquisador", "cartao": "redator"}
+MODELO_PADRAO_REF = "anthropic/claude-sonnet-5-5"  # referência de custo quando a preferência iaModeloPadrao está vazia
 _PARAMS_RASTREIO = re.compile(r"^(utm_|fbclid$|gclid$|igshid$|mc_cid$|mc_eid$|ref$|ref_src$)", re.I)
 _TZ = ZoneInfo("America/Sao_Paulo")
 TIPO_EVENTO = {"ato": "ato", "manifestacao": "ato", "manifestação": "ato", "protesto": "ato", "carreata": "carreata", "motociata": "motociata", "caminhada": "caminhada", "comicio": "comicio", "comício": "comicio", "bloqueio": "outro", "greve": "outro", "debate": "debate", "entrevista": "entrevista", "reuniao": "reuniao", "reunião": "reuniao"}
@@ -197,7 +201,13 @@ def teto_atingido(session: Session, prefs: Preferencias) -> bool:
     return bool(prefs.iaCustoDiarioUsd) and custo_do_dia(session).custo_usd >= prefs.iaCustoDiarioUsd
 
 
-def _contabilizar(session: Session, t: IaTarefa, etapa: str, resp: Any) -> None:
+def _contabilizar(session: Session, t: IaTarefa, etapa: str, resp: Any, modelo_ref: str | None = None) -> None:
+    if (not resp.modelo or resp.modelo.startswith("openclaw/")) and modelo_ref:
+        # o gateway responde model="openclaw/<agent>"; estima o custo pelo modelo configurado para a etapa
+        from app.services.ia.cliente_openclaw import estimar_custo
+
+        resp.modelo = modelo_ref
+        resp.custo_usd = estimar_custo(modelo_ref, resp.tokens_entrada, resp.tokens_saida)
     t.tokens_entrada += resp.tokens_entrada
     t.tokens_saida += resp.tokens_saida
     t.custo_usd = round(t.custo_usd + resp.custo_usd, 6)
@@ -246,8 +256,9 @@ async def _contexto(session: Session, t: IaTarefa, scraper: Any, prefs: Preferen
     return ctx
 
 
-async def _etapa(session: Session, t: IaTarefa, cliente: ClienteOpenClaw, etapa: str, agent: str, prompt: str, esquema: type[BaseModel], *, modelo: str | None, max_tokens: int, timeout: float | None = None) -> BaseModel:
+async def _etapa(session: Session, t: IaTarefa, cliente: ClienteOpenClaw, etapa: str, agent: str, prompt: str, esquema: type[BaseModel], *, modelo: str | None, max_tokens: int, timeout: float | None = None, modelo_ref: str | None = None) -> BaseModel:
     campo = CAMPO_JSON[etapa]
+    modelo_ref = modelo_ref or modelo
     atual = _carregar(t, campo)
     if atual:  # retentativa: etapa já concluída antes
         return esquema.model_validate(atual)
@@ -256,8 +267,17 @@ async def _etapa(session: Session, t: IaTarefa, cliente: ClienteOpenClaw, etapa:
     session.commit()
     erro: Exception | None = None
     for tentativa in (1, 2):
-        resp = await cliente.perguntar(agent, prompt, modelo=modelo, max_tokens=max_tokens, timeout=timeout)
-        _contabilizar(session, t, etapa, resp)
+        try:
+            resp = await cliente.perguntar(agent, prompt, modelo=modelo, max_tokens=max_tokens, timeout=timeout)
+        except OpenClawErro as exc:
+            if modelo and exc.status == 400 and "not allowed" in exc.detalhe:
+                # o gateway só aceita troca de modelo dentro da lista do agent: segue com o modelo configurado nele
+                logger.info("modelo por chamada recusado; usando o modelo do agent", extra={"dados": {"agent": agent, "modelo": modelo}})
+                modelo = None
+                resp = await cliente.perguntar(agent, prompt, modelo=None, max_tokens=max_tokens, timeout=timeout)
+            else:
+                raise
+        _contabilizar(session, t, etapa, resp, modelo_ref)
         try:
             obj = esquema.model_validate(extrair_json(resp.texto))
             setattr(t, campo, _json(obj))
@@ -285,7 +305,8 @@ async def executar_tarefa(session: Session, t: IaTarefa, cliente: ClienteOpenCla
     session.commit()
     try:
         ctx = await _contexto(session, t, scraper, prefs)
-        triagem = await _etapa(session, t, cliente, "triagem", "sentinela", prompts.prompt_triagem(ctx), TriagemOut, modelo=prefs.iaModeloTriagem or None, max_tokens=500)
+        ref_padrao = prefs.iaModeloPadrao or MODELO_PADRAO_REF
+        triagem = await _etapa(session, t, cliente, "triagem", AGENTS["triagem"], prompts.prompt_triagem(ctx), TriagemOut, modelo=prefs.iaModeloTriagem or None, max_tokens=900, modelo_ref=prefs.iaModeloTriagem or ref_padrao)
         assert isinstance(triagem, TriagemOut)
         t.veredito, t.severidade, t.justificativa, t.secao_sugerida, t.eh_evento = triagem.veredito, triagem.severidade, triagem.justificativa, triagem.secao, triagem.eh_evento
         evento: EventoOut | None = None
@@ -294,12 +315,12 @@ async def executar_tarefa(session: Session, t: IaTarefa, cliente: ClienteOpenCla
         if triagem.veredito != "DESCARTAR":
             tri = triagem.model_dump(mode="json")
             if triagem.eh_evento:
-                evento = await _etapa(session, t, cliente, "extracao", "extrator", prompts.prompt_extracao(ctx, tri), EventoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=700)  # type: ignore[assignment]
+                evento = await _etapa(session, t, cliente, "extracao", AGENTS["extracao"], prompts.prompt_extracao(ctx, tri), EventoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1200, modelo_ref=ref_padrao)  # type: ignore[assignment]
             ev_d = evento.model_dump(mode="json") if evento else None
             if triagem.veredito == "RELEVANTE" and _pesquisar(prefs, triagem.severidade):
-                pesquisa = await _etapa(session, t, cliente, "pesquisa", "pesquisador", prompts.prompt_pesquisa(ctx, tri, ev_d), PesquisaOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1500, timeout=max(cliente.timeout, 420.0))  # type: ignore[assignment]
+                pesquisa = await _etapa(session, t, cliente, "pesquisa", AGENTS["pesquisa"], prompts.prompt_pesquisa(ctx, tri, ev_d), PesquisaOut, modelo=prefs.iaModeloPadrao or None, max_tokens=3000, timeout=max(cliente.timeout, 420.0), modelo_ref=ref_padrao)  # type: ignore[assignment]
             pq_d = pesquisa.model_dump(mode="json") if pesquisa else None
-            cartao = await _etapa(session, t, cliente, "cartao", "analista", prompts.prompt_cartao(ctx, tri, ev_d, pq_d), CartaoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=700)  # type: ignore[assignment]
+            cartao = await _etapa(session, t, cliente, "cartao", AGENTS["cartao"], prompts.prompt_cartao(ctx, tri, ev_d, pq_d), CartaoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1200, modelo_ref=ref_padrao)  # type: ignore[assignment]
         t.etapa = "saidas"
         await aplicar_saidas(session, t, triagem, evento, pesquisa, cartao, prefs)
         t.status, t.etapa, t.erro, t.concluido_em = "concluida", "fim", "", agora()
@@ -656,8 +677,9 @@ async def pesquisar_sob_pedido(session: Session, t: IaTarefa, cliente: ClienteOp
     ev = _carregar(t, "evento_json") or None
     t.pesquisa_json = "{}"
     t.cartao_json = "{}"
-    pesquisa = await _etapa(session, t, cliente, "pesquisa", "pesquisador", prompts.prompt_pesquisa(ctx, tri, ev), PesquisaOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1500, timeout=max(cliente.timeout, 420.0))
-    cartao = await _etapa(session, t, cliente, "cartao", "analista", prompts.prompt_cartao(ctx, tri, ev, pesquisa.model_dump(mode="json")), CartaoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=700)
+    ref_padrao = prefs.iaModeloPadrao or MODELO_PADRAO_REF
+    pesquisa = await _etapa(session, t, cliente, "pesquisa", AGENTS["pesquisa"], prompts.prompt_pesquisa(ctx, tri, ev), PesquisaOut, modelo=prefs.iaModeloPadrao or None, max_tokens=3000, timeout=max(cliente.timeout, 420.0), modelo_ref=ref_padrao)
+    cartao = await _etapa(session, t, cliente, "cartao", AGENTS["cartao"], prompts.prompt_cartao(ctx, tri, ev, pesquisa.model_dump(mode="json")), CartaoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1200, modelo_ref=ref_padrao)
     if t.alerta_id:
         alerta = session.get(Alerta, t.alerta_id)
         if alerta is not None and isinstance(cartao, CartaoOut):

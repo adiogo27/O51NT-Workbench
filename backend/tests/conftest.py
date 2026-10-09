@@ -76,6 +76,7 @@ class FakeOpenClaw:
         self.chamadas: list[dict[str, Any]] = []
         self.status = 200
         self.alcancavel = True
+        self.recusar_override = False  # simula "Model X is not allowed for agent Y" quando vier x-openclaw-model
 
     def responder(self, agent: str, *respostas: Any) -> None:
         self.respostas.setdefault(agent, []).extend(respostas)
@@ -91,6 +92,8 @@ class FakeOpenClaw:
             return httpx.Response(self.status, text="erro simulado")
         corpo = json.loads(request.content)
         agent = str(corpo.get("model", "")).split("/", 1)[-1]
+        if self.recusar_override and request.headers.get("x-openclaw-model"):
+            return httpx.Response(400, json={"error": {"message": f"Model '{request.headers['x-openclaw-model']}' is not allowed for agent '{agent}'.", "type": "invalid_request_error"}})
         self.chamadas.append({"agent": agent, "modelo": request.headers.get("x-openclaw-model"), "auth": request.headers.get("authorization"), "max_tokens": corpo.get("max_completion_tokens"), "mensagem": corpo["messages"][0]["content"]})
         fila = self.respostas.get(agent) or []
         if not fila:

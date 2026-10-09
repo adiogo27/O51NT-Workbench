@@ -60,7 +60,7 @@ def test_pipeline_completo_relevante_com_aprovacao(client: TestClient, fake_fetc
     fake_openclaw.responder("sentinela", TRIAGEM_RELEVANTE)
     fake_openclaw.responder("extrator", EVENTO)
     fake_openclaw.responder("pesquisador", PESQUISA)
-    fake_openclaw.responder("analista", CARTAO)
+    fake_openclaw.responder("redator", CARTAO)
     try:
         with respx.mock(base_url="https://api.telegram.org") as mock:
             envio = mock.post("/bot123:ABC/sendMessage").mock(return_value=Response(200, json={"ok": True, "result": {"message_id": 9}}))
@@ -75,7 +75,7 @@ def test_pipeline_completo_relevante_com_aprovacao(client: TestClient, fake_fetc
             assert t["evento"]["data"] == "2026-10-12" and t["pesquisa"]["verificacao"] == "confirmado" and t["cartao"]["titulo"].startswith("Carreata")
             assert t["aprovacao"] == "pendente" and t["alerta_id"] and t["telegram_enviado"] is True
             assert t["tokens_entrada"] == 4000 and t["custo_usd"] > 0 and "triagem=claude-haiku-5-5" in t["modelos"]
-            assert [c["agent"] for c in fake_openclaw.chamadas] == ["sentinela", "extrator", "pesquisador", "analista"]
+            assert [c["agent"] for c in fake_openclaw.chamadas] == ["sentinela", "extrator", "pesquisador", "redator"]
             assert fake_openclaw.chamadas[0]["modelo"] == "anthropic/claude-haiku-5-5" and fake_openclaw.chamadas[0]["auth"] == "Bearer token-teste"
             assert "<conteudo>" in fake_openclaw.chamadas[0]["mensagem"] and "BR-101" in fake_openclaw.chamadas[0]["mensagem"]
             assert envio.call_count == 1 and "aprovar " in envio.calls[0].request.content.decode()
@@ -119,7 +119,7 @@ def test_observar_vai_para_o_resumo_periodico(client: TestClient, fake_fetcher: 
     config.get_settings.cache_clear()
     _preparar(client, fake_fetcher, query="BR-116")
     fake_openclaw.responder("sentinela", {"veredito": "OBSERVAR", "severidade": "media", "justificativa": "operação de rotina", "secao": "noticia"})
-    fake_openclaw.responder("analista", {"titulo": "Blitz na BR-116", "resumo": "Rotina.", "fontes": []})
+    fake_openclaw.responder("redator", {"titulo": "Blitz na BR-116", "resumo": "Rotina.", "fontes": []})
     try:
         with respx.mock(base_url="https://api.telegram.org") as mock:
             envio = mock.post("/bot123:ABC/sendMessage").mock(return_value=Response(200, json={"ok": True, "result": {"message_id": 1}}))
@@ -127,7 +127,7 @@ def test_observar_vai_para_o_resumo_periodico(client: TestClient, fake_fetcher: 
             client.post("/api/ia/ciclo")
             assert envio.call_count == 0  # OBSERVAR não vai na hora
             t = client.get("/api/ia/tarefas").json()[0]
-            assert t["veredito"] == "OBSERVAR" and t["aprovacao"] == "nao_se_aplica" and [c["agent"] for c in fake_openclaw.chamadas] == ["sentinela", "analista"]
+            assert t["veredito"] == "OBSERVAR" and t["aprovacao"] == "nao_se_aplica" and [c["agent"] for c in fake_openclaw.chamadas] == ["sentinela", "redator"]
             assert client.get("/api/alertas?tipo=ia").json()[0]["severidade"] == "baixa"
             r = client.post("/api/ia/resumo").json()
             assert r["enviados"] == 1 and envio.call_count == 1 and "para observar" in envio.calls[0].request.content.decode()
@@ -172,6 +172,16 @@ def test_resposta_invalida_retenta_e_depois_erro(client: TestClient, fake_fetche
     assert client.get(f"/api/ia/tarefas/{t['id']}").json()["status"] == "concluida"
 
 
+def test_override_de_modelo_recusado_cai_para_o_modelo_do_agent(client: TestClient, fake_fetcher: FakeFetcher, fake_openclaw: FakeOpenClaw) -> None:
+    _preparar(client, fake_fetcher, query="BR-116")
+    fake_openclaw.recusar_override = True
+    fake_openclaw.responder("sentinela", {"veredito": "DESCARTAR", "severidade": "baixa", "justificativa": "x"})
+    client.post("/api/radar/ciclo")
+    assert client.post("/api/ia/ciclo").json()["concluidas"] == 1
+    assert [c["modelo"] for c in fake_openclaw.chamadas] == [None]  # a recusa não é contabilizada; a 2ª chamada vai sem override
+    assert client.get("/api/ia/tarefas").json()[0]["status"] == "concluida"
+
+
 def test_monitor_sem_ia_e_tarefa_manual_e_acao_local(client: TestClient, fake_fetcher: FakeFetcher, fake_openclaw: FakeOpenClaw) -> None:
     mid = _preparar(client, fake_fetcher, query="BR-116")
     assert client.patch(f"/api/monitors/{mid}", json={"ia": False}).json()["ia"] is False
@@ -200,7 +210,7 @@ def test_deteccao_de_convocacao_entra_na_fila(client: TestClient, fake_openclaw:
     fake_openclaw.responder("sentinela", {"veredito": "RELEVANTE", "severidade": "critica", "justificativa": "ato com rodovia", "eh_evento": True, "secao": "manifestacao"})
     fake_openclaw.responder("extrator", {**EVENTO, "rodovias": ["BR-116"], "uf": "PR", "cidade": "Curitiba"})
     fake_openclaw.responder("pesquisador", PESQUISA)
-    fake_openclaw.responder("analista", CARTAO)
+    fake_openclaw.responder("redator", CARTAO)
     client.post("/api/ia/ciclo")
     t = client.get(f"/api/ia/tarefas/{fila[0]['id']}").json()
     assert t["status"] == "concluida" and t["aprovacao"] == "pendente" and "<conteudo>" in fake_openclaw.chamadas[0]["mensagem"] and "detector de convocações" in fake_openclaw.chamadas[0]["mensagem"]
