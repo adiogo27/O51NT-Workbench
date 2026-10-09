@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import Any, Literal
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from sqlalchemy import func
 from sqlmodel import Session, col, select
@@ -155,6 +155,80 @@ def parse_feed(texto: str) -> list[ItemFeed]:
         publicado = parse_data(_texto(_primeiro(campos, "pubdate", "published", "updated", "date")))
         itens.append(ItemFeed(url=link, titulo=titulo[:300], resumo=resumo[:RESUMO_MAX], publicado_em=publicado, midias=midias[:6]))
     return itens
+
+
+# ------------------------------------------------------------------ páginas HTML (fontes sem RSS)
+_EXT_NAO_ARTIGO = re.compile(r"\.(?:jpe?g|png|gif|webp|svg|ico|pdf|mp4|mp3|zip|css|js|xml|json)(?:\?|$)", re.I)
+
+
+def descobrir_feed(html_texto: str, base_url: str) -> str | None:
+    """URL do RSS/Atom anunciado em <link rel="alternate" type="application/rss+xml">, se houver."""
+    if not html_texto or "<link" not in html_texto.lower():
+        return None
+    from bs4 import BeautifulSoup
+
+    sopa = BeautifulSoup(html_texto, "lxml")
+    for link in sopa.find_all("link"):
+        rel = " ".join(link.get("rel") or []).lower()
+        tipo = (link.get("type") or "").lower()
+        href = (link.get("href") or "").strip()
+        if "alternate" in rel and href and ("rss" in tipo or "atom" in tipo):
+            u = urljoin(base_url, href)
+            if u.startswith(("http://", "https://")):
+                return u
+    return None
+
+
+def parse_pagina(html_texto: str, base_url: str, max_itens: int = 100) -> list[ItemFeed]:
+    """Links de matérias numa página de notícias sem RSS: mesmo host, fora de nav/rodapé, texto da âncora ≥ 25 caracteres."""
+    if not html_texto:
+        return []
+    from bs4 import BeautifulSoup
+
+    sopa = BeautifulSoup(html_texto, "lxml")
+    for tag in sopa.find_all(["nav", "header", "footer", "aside", "script", "style", "noscript", "form", "svg"]):
+        tag.decompose()
+    for tag in sopa.select('[role="navigation"], [role="banner"], [role="contentinfo"], [aria-hidden="true"]'):
+        tag.decompose()
+    base = urlsplit(base_url)
+    host = base.netloc.lower().removeprefix("www.")
+    base_limpa = urlunsplit((base.scheme, base.netloc, base.path.rstrip("/"), "", ""))
+    itens: list[ItemFeed] = []
+    vistos: set[str] = set()
+    for a in sopa.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        if not href or href.startswith(("#", "mailto:", "javascript:", "tel:", "whatsapp:")):
+            continue
+        url = urljoin(base_url, href)
+        p = urlsplit(url)
+        if p.scheme not in ("http", "https") or p.netloc.lower().removeprefix("www.") != host:
+            continue
+        url = urlunsplit((p.scheme, p.netloc, p.path, p.query, ""))
+        if url.rstrip("/") == base_limpa or len(p.path.strip("/")) < 2 or _EXT_NAO_ARTIGO.search(p.path):
+            continue
+        texto = " ".join(a.get_text(" ").split()) or " ".join((a.get("title") or "").split())
+        chave = urlunsplit((p.scheme, host, p.path, p.query, ""))  # com e sem www. é o mesmo link
+        if len(texto) < 25 or chave in vistos:
+            continue
+        vistos.add(chave)
+        itens.append(ItemFeed(url=url, titulo=texto[:300]))
+        if len(itens) >= max_itens:
+            break
+    return itens
+
+
+def hash_conteudo(html_texto: str) -> str:
+    """SHA-256 do texto visível (sem tags/espacos) — detecta mudança da página entre verificações."""
+    return hashlib.sha256(limpar_html(html_texto or "").encode("utf-8", "replace")).hexdigest()
+
+
+def fonte_devida(fonte: Fonte, agora_: datetime) -> bool:
+    """Fonte com intervalo próprio só é coletada quando o intervalo venceu; sem intervalo, segue o ciclo global."""
+    intervalo = getattr(fonte, "intervalo_min", None)
+    if not intervalo or fonte.ultima_coleta is None:
+        return True
+    ultima = fonte.ultima_coleta if fonte.ultima_coleta.tzinfo else fonte.ultima_coleta.replace(tzinfo=UTC)
+    return agora_ - ultima >= timedelta(minutes=intervalo)
 
 
 # ------------------------------------------------------------------ matcher
@@ -373,7 +447,7 @@ def _processar_resultado(session: Session, fonte: Fonte, status: int, corpo: str
     novos: list[FonteItem] = []
     if erro is None and 200 <= status < 300:
         try:
-            itens = parse_feed(corpo)
+            itens = _itens_pagina(fonte, corpo) if getattr(fonte, "tipo", "feed") == "pagina" else parse_feed(corpo)
             novos = inserir_itens(session, fonte, itens)
             session.flush()
             fonte.itens_total = session.exec(select(func.count(FonteItem.id)).where(FonteItem.fonte_id == fonte.id)).one()
@@ -388,6 +462,22 @@ def _processar_resultado(session: Session, fonte: Fonte, status: int, corpo: str
     for n in novos:
         session.refresh(n)
     return novos, erro
+
+
+def _itens_pagina(fonte: Fonte, corpo: str) -> list[ItemFeed]:
+    """Fonte do tipo página: extrai links de matérias, registra o hash do conteúdo e adota o RSS se a página anunciar um."""
+    url_pagina = fonte.url
+    itens = parse_pagina(corpo, url_pagina)
+    novo_hash = hash_conteudo(corpo)
+    if novo_hash != (fonte.conteudo_hash or ""):
+        fonte.conteudo_hash = novo_hash
+        fonte.ultima_mudanca = agora()
+    feed = descobrir_feed(corpo, url_pagina)
+    if feed and feed != url_pagina:
+        fonte.tipo = "feed"
+        fonte.url = feed
+        logger.info("página anuncia RSS: fonte convertida em feed", extra={"dados": {"fonte": fonte.id, "pagina": url_pagina, "feed": feed}})
+    return itens
 
 
 def _monitores_ativos(session: Session) -> list[Monitor]:
@@ -438,6 +528,13 @@ def casar_itens(session: Session, monitores: list[Monitor], itens: list[FonteIte
     for hits in por_monitor.values():
         for h in hits:
             session.refresh(h)
+    if por_monitor:
+        try:  # assistente de IA (só com iaAtivo; dedupe por URL dentro do pipeline)
+            from app.services.ia import pipeline
+
+            pipeline.enfileirar_hits(session, por_monitor, monitores)
+        except Exception:  # a fila nunca derruba o casamento
+            logger.exception("falha ao enfileirar hits para a IA")
     return por_monitor
 
 
@@ -494,11 +591,24 @@ async def _alertar(mon: Monitor, hits: list[MonitorHit], session: Session | None
     return await alerts.disparar(mon.canal_alerta, evento, mon.webhook_url)
 
 
+def _suprimir_alertas_brutos() -> bool:
+    """Com o assistente ligado, o alerta "N novos resultados" dá lugar ao cartão triado (preferência iaSuprimirAlertasBrutos)."""
+    try:
+        from app.routers.settings import carregar
+
+        prefs = carregar().preferencias
+        return bool(prefs.iaAtivo and prefs.iaSuprimirAlertasBrutos)
+    except Exception:
+        return False
+
+
 async def ciclo(session: Session, scraper: EthicalScraper, apenas_fonte: Fonte | None = None) -> dict[str, Any]:
     """Um ciclo do Radar: atualiza as fontes ativas, casa os itens novos com todos os monitores ativos, alerta."""
     global ULTIMO_CICLO
     t0 = time.monotonic()
     fontes = [apenas_fonte] if apenas_fonte else list(session.exec(select(Fonte).where(Fonte.ativa == True)).all())  # noqa: E712
+    if apenas_fonte is None:
+        fontes = [f for f in fontes if fonte_devida(f, agora())]  # páginas/feeds com intervalo próprio
     # as buscas correm em paralelo pela fila do scraper (rate-limit por domínio); o banco é usado em sequência
     respostas = await asyncio.gather(*(scraper.buscar(f.url, respeitar_robots=f.respeitar_robots) for f in fontes))
     novos: list[FonteItem] = []
@@ -509,10 +619,11 @@ async def ciclo(session: Session, scraper: EthicalScraper, apenas_fonte: Fonte |
         relatorio_fontes.append({"id": f.id, "nome": f.nome, "status": r.status, "novos": len(itens), "erro": erro})
     monitores = _monitores_ativos(session)
     por_monitor = casar_itens(session, monitores, novos)
+    suprimir = _suprimir_alertas_brutos()
     alertas = 0
     for mon in monitores:
         hits = por_monitor.get(mon.id or -1, [])
-        if hits:
+        if hits and not (suprimir and getattr(mon, "ia", True)):
             await _alertar(mon, hits, session)
             alertas += 1
     resumo = {

@@ -85,6 +85,9 @@ def _migrar(engine: Engine) -> None:
         )
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_invite_status ON invite (status)"))
         _add_colunas(conn, "fonte_item", {"midias": "VARCHAR NOT NULL DEFAULT '[]'"})
+        # Páginas HTML no Radar + assistente de IA
+        _add_colunas(conn, "fonte", {"tipo": "VARCHAR NOT NULL DEFAULT 'feed'", "intervalo_min": "INTEGER", "conteudo_hash": "VARCHAR NOT NULL DEFAULT ''", "ultima_mudanca": "DATETIME"})
+        _add_colunas(conn, "monitor", {"ia": "BOOLEAN NOT NULL DEFAULT 1"})
 
 
 def _add_colunas(conn, tabela: str, colunas: dict[str, str]) -> None:  # noqa: ANN001

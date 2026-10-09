@@ -163,6 +163,7 @@ export interface Monitor {
   radar_modo: "termos" | "estrito";
   hits_total: number;
   hits_novos: number;
+  ia: boolean;
 }
 
 export interface Fonte {
@@ -178,6 +179,9 @@ export interface Fonte {
   itens_total: number;
   novos_ultima: number;
   criado_em: string;
+  tipo: "feed" | "pagina";
+  intervalo_min: number | null;
+  ultima_mudanca: string | null;
 }
 
 export interface FonteCatalogo {
@@ -196,6 +200,8 @@ export interface FonteTeste {
   robots_permite: boolean;
   itens: number;
   amostra: { titulo: string; url: string; publicado_em: string | null }[];
+  tipo_detectado?: "feed" | "pagina" | null;
+  feed_descoberto?: string | null;
 }
 
 export interface Hit {
@@ -354,6 +360,131 @@ export interface Preferencias {
   convitesRespeitarRobots: boolean;
   convitesVerificarAuto: boolean;
   convitesVerificarIntervaloHoras: number;
+  // Assistente de IA (OpenClaw)
+  iaAtivo: boolean;
+  iaIntervaloMin: number;
+  iaMaxItensCiclo: number;
+  iaCustoDiarioUsd: number;
+  iaModeloTriagem: string;
+  iaModeloPadrao: string | null;
+  iaPesquisarSeveridadeMin: "baixa" | "media" | "alta" | "critica" | "nunca";
+  iaBoletim: "auto" | "aprovar" | "nunca";
+  iaAgenda: "auto" | "aprovar" | "nunca";
+  iaTelegramRelevante: boolean;
+  iaResumoHoras: number;
+  iaSuprimirAlertasBrutos: boolean;
+  iaMarcarLidos: boolean;
+  iaTextoMaxChars: number;
+  ferramentasSensiveisAtivas: boolean;
+}
+
+// ------------------------------------------------------------------ Assistente de IA
+export type Veredito = "RELEVANTE" | "OBSERVAR" | "DESCARTAR";
+
+export interface IaTarefa {
+  id: number;
+  origem: "hit" | "deteccao" | "manual";
+  hit_id: number | null;
+  deteccao_id: number | null;
+  monitor_id: number | null;
+  monitor_nome: string;
+  url: string;
+  titulo: string;
+  resumo: string;
+  fonte_nome: string;
+  termos: string;
+  publicado_em: string | null;
+  texto_chars: number;
+  status: "pendente" | "em_processo" | "concluida" | "erro";
+  etapa: string;
+  tentativas: number;
+  erro: string;
+  veredito: Veredito | null;
+  severidade: Severidade | null;
+  justificativa: string;
+  secao_sugerida: string | null;
+  eh_evento: boolean;
+  triagem: Record<string, unknown>;
+  evento: { tipo?: string | null; titulo?: string | null; data?: string | null; hora?: string | null; cidade?: string | null; uf?: string | null; local?: string | null; rodovias?: string[]; organizador?: string | null; pauta?: string | null; confianca?: number };
+  pesquisa: { resposta?: string; verificacao?: string | null; fontes?: { url: string; titulo?: string; trecho?: string }[]; confianca?: number; lacunas?: string };
+  cartao: { titulo?: string; resumo?: string; impacto_rodovia?: string; acao?: string; fontes?: string[] };
+  aprovacao: "nao_se_aplica" | "pendente" | "aprovada" | "rejeitada";
+  aprovado_por: string;
+  aprovado_em: string | null;
+  alerta_id: number | null;
+  boletim_item_id: number | null;
+  agenda_evento_id: number | null;
+  telegram_enviado: boolean;
+  resumo_enviado: boolean;
+  tokens_entrada: number;
+  tokens_saida: number;
+  custo_usd: number;
+  modelos: string;
+  criado_em: string;
+  iniciado_em: string | null;
+  concluido_em: string | null;
+}
+
+export interface IaStatus {
+  ativo: boolean;
+  intervalo_min: number;
+  openclaw_configurado: boolean;
+  openclaw_url: string;
+  fila: { pendente: number; em_processo: number; concluida: number; erro: number };
+  vereditos: Record<string, number>;
+  aprovacoes_pendentes: number;
+  alertas_ia_nao_lidos: number;
+  custo_hoje: { data: string; chamadas: number; tokens_entrada: number; tokens_saida: number; custo_usd: number; teto_usd: number; bloqueado: boolean };
+  politica: { boletim: string; agenda: string; pesquisar_min: string; telegram_relevante: boolean; resumo_horas: number };
+  ultimo_ciclo: { executado_em: string; processadas: number; concluidas: number; erros: number; custo_usd: number; motivo_parada: string | null; duracao_s?: number } | null;
+  agendado: boolean;
+  proximo_ciclo: string | null;
+  proximo_resumo: string | null;
+}
+
+export interface IaCustoDia {
+  data: string;
+  chamadas: number;
+  tokens_entrada: number;
+  tokens_saida: number;
+  custo_usd: number;
+}
+
+export interface FerramentaServidor {
+  id: string;
+  nome: string;
+  descricao: string;
+  tipo_alvo: string;
+  grupo: "infra" | "perfis" | "midia" | "sensivel";
+  sensivel: boolean;
+  timeout_s: number;
+  exemplo: string;
+  instalada: boolean;
+  habilitada: boolean;
+}
+
+export interface FerramentaResultado {
+  id: number | null;
+  ferramenta: string;
+  alvo: string;
+  comando: string[];
+  ok: boolean;
+  codigo: number | null;
+  saida: string;
+  truncada: boolean;
+  duracao_ms: number;
+  erro: string | null;
+}
+
+export interface FerramentaExecucao {
+  id: number;
+  ferramenta: string;
+  alvo: string;
+  solicitante: string;
+  ok: boolean;
+  duracao_ms: number;
+  resumo: string;
+  criado_em: string;
 }
 
 // ------------------------------------------------------------------ Convocações / Alertas
@@ -526,7 +657,7 @@ export interface ConvocacoesStatus {
 
 export interface Alerta {
   id: number;
-  tipo: "convocacao" | "convite" | "radar";
+  tipo: "convocacao" | "convite" | "radar" | "ia";
   severidade: Severidade;
   titulo: string;
   resumo: string;

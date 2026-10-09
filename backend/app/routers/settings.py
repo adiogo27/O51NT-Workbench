@@ -64,6 +64,7 @@ async def atualizar(dados: SettingsIn) -> AppSettings:
     scheduler.agendar_radar()
     scheduler.agendar_convocacoes()
     scheduler.agendar_convites()
+    scheduler.agendar_ia()
     return cfg
 
 
@@ -76,6 +77,7 @@ async def resetar() -> AppSettings:
     scheduler.agendar_radar()
     scheduler.agendar_convocacoes()
     scheduler.agendar_convites()
+    scheduler.agendar_ia()
     return cfg
 
 

@@ -188,6 +188,13 @@ async def registrar_analise(
         session.add(det)
         session.commit()
         session.refresh(det)
+        try:  # assistente de IA: detecção acima do limiar entra na fila (triagem + extração do evento)
+            from app.services.ia import pipeline
+
+            pipeline.enfileirar_deteccao(session, det, prefs)
+        except Exception:
+            logger.exception("falha ao enfileirar detecção para a IA")
+        session.refresh(det)  # o commit da fila expira a instância
     return ResultadoRegistro(deteccao=det, nova=True, ocorrencia=None, alerta=alerta, convites_registrados=registrados)
 
 

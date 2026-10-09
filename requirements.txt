@@ -8,6 +8,7 @@ httpx>=0.27
 beautifulsoup4>=4.12
 lxml>=5.3
 python-multipart>=0.0.12
+trafilatura>=1.12  # texto principal de matérias (assistente de IA); fallback bs4 se ausente
 # dev
 pytest>=8.3
 pytest-asyncio>=0.24

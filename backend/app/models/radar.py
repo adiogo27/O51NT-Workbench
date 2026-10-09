@@ -24,6 +24,11 @@ class Fonte(SQLModel, table=True):
     itens_total: int = 0
     novos_ultima: int = 0
     criado_em: datetime = Field(default_factory=agora)
+    # Páginas HTML sem RSS (tipo "pagina"): links de matérias são extraídos a cada verificação.
+    tipo: str = "feed"  # feed | pagina
+    intervalo_min: int | None = None  # None = intervalo global do Radar; senão só verifica quando vencer
+    conteudo_hash: str = ""  # hash do texto visível da última verificação (detecta mudança da página)
+    ultima_mudanca: datetime | None = None  # última vez em que o conteúdo da página mudou
 
 
 class FonteItem(SQLModel, table=True):

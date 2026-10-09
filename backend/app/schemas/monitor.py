@@ -18,6 +18,7 @@ class MonitorIn(BaseModel):
     tipo: TipoMonitor = "query"
     ativo: bool = True
     radar_modo: Literal["termos", "estrito"] = "termos"
+    ia: bool = True  # hits entram na fila do assistente de IA (quando iaAtivo)
 
 
 class MonitorPatch(BaseModel):
@@ -28,6 +29,7 @@ class MonitorPatch(BaseModel):
     webhook_url: str | None = None
     ativo: bool | None = None
     radar_modo: Literal["termos", "estrito"] | None = None
+    ia: bool | None = None
 
 
 class MonitorOut(BaseModel):
@@ -46,6 +48,7 @@ class MonitorOut(BaseModel):
     radar_modo: str = "termos"
     hits_total: int = 0
     hits_novos: int = 0
+    ia: bool = True
 
 
 class MonitorRunOut(BaseModel):

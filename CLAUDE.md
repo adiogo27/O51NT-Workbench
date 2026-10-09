@@ -54,6 +54,32 @@ Ambiente: Python 3.12+ (`.venv`), Node 22+, Docker opcional (SearXNG em `127.0.0
 - Testes com auth: fixture `cliente_auth` em `backend/tests/integration/test_auth_router.py` (captura os códigos em vez de enviar e-mail).
 - Segredos de SMTP (`SMTP_HOST/PORT/USER/PASSWORD/FROM`) só no `.env` da VPS via `segredos.sh`.
 
+## Assistente de IA (pipeline OpenClaw) — desde 2026-10-09
+
+- O51NT orquestra; o OpenClaw só executa turnos de agent via `POST http://127.0.0.1:18789/v1/chat/completions`
+  (`model: "openclaw/<agent>"`, token do gateway em `OPENCLAW_GATEWAY_TOKEN`, sessão nova por chamada).
+  Código: `backend/app/services/ia/{cliente_openclaw,esquemas,prompts,pipeline}.py`, `models/ia.py`, `routers/ia.py`.
+- **Entrada**: só `MonitorHit` (casamento determinístico em `radar.casar_itens`, monitores com `ia=True`) e `Deteccao` ≥ limiar.
+  Uma tarefa por URL normalizada (`pipeline.normalizar_url`). Fila: `ia_tarefa` (status pendente → em_processo → concluida|erro).
+- **Cadeia**: sentinela (triagem JSON, modelo barato `iaModeloTriagem`) → extrator (só `eh_evento`) → pesquisador (só RELEVANTE
+  ≥ `iaPesquisarSeveridadeMin`) → analista (cartão). Prompts com marcador `### O51NT-PIPELINE` e bloco `<conteudo>` tratado como dado.
+- **Saídas**: Alerta `tipo="ia"` sempre (DESCARTAR não gera alerta; marca o hit lido); Telegram imediato para RELEVANTE; resumo
+  periódico dos OBSERVAR (`iaResumoHoras`); Boletim/Agenda conforme `iaBoletim`/`iaAgenda` (`auto|aprovar|nunca`) — aprovação
+  no painel (`/ia`) ou pelo Telegram (analista chama `GET /api/ia/tarefas/{id}/acao?acao=aprovar`, aceito só de loopback
+  sem `X-Forwarded-For`, porque o `web_fetch` do OpenClaw só faz GET).
+- **Guardrails**: `iaMaxItensCiclo`, teto `iaCustoDiarioUsd` (custo estimado por tabela em `cliente_openclaw.PRECOS_ESTIMADOS`),
+  2 tentativas por etapa + 3 por tarefa, gateway fora do ar só adia. `/api/alertas/contagem` NÃO ganhou chave (contrato).
+- **Páginas HTML** no Radar: `Fonte.tipo="pagina"` + `intervalo_min` (`radar.parse_pagina/descobrir_feed/hash_conteudo/fonte_devida`).
+- **Ferramentas Kali** (`services/ferramentas.py`, `routers/ferramentas.py`, `deploy/vps/08_ferramentas.sh`): lista de permissão,
+  `create_subprocess_exec` sem shell, alvo validado por regex, 64 KB, auditoria em `ferramenta_execucao`; sensíveis (holehe, h8mail,
+  phoneinfoga) exigem `ferramentasSensiveisAtivas`. Intrusivas (nmap etc.) não existem. GET local `/api/ferramentas/executar`
+  para o pesquisador (mesma regra de loopback).
+- OpenClaw (`05_openclaw.sh`): `gateway.http.endpoints.chatCompletions.enabled`, heartbeat `every "0m"`,
+  `tools.web.fetch.ssrfPolicy.allowedHostnames=[127.0.0.1]` (sem isso o web_fetch bloqueia a API local), plugin SearXNG
+  (`SEARXNG_BASE_URL`), `model.fallbacks=[openai/gpt-5.5]`. Token do gateway → `/opt/o51nt/.env`. O gateway reescreve o
+  `openclaw.json` em JSON: o script lê o token em ambos os formatos e regenera o arquivo inteiro (não usar `sed`).
+- Testes: `FakeOpenClaw` em `tests/conftest.py` (respostas por agent), `tests/integration/test_ia_router.py`, `tests/unit/test_ia_unidades.py`.
+
 ## Implantação na VPS — plano e progresso
 
 **Alvo**: VM InterServer `vps3700295` → **`162.35.16.238`** (o `162.35.16.238` é a VM; `216.158.228.164` é
@@ -76,6 +102,7 @@ IA = **OpenClaw** na VM (openclaw.ai, OpenClaw Foundation) com agents definidos,
 | 6 | **OpenClaw** em usuário próprio (`openclaw`), daemon systemd, canal Telegram, agents O51NT | ✅ 2026-10-09 (LLM/Telegram ativam ao gravar as chaves) | `deploy/vps/05_openclaw.sh`. OpenClaw 2026.9.9, gateway `127.0.0.1:18789` (token), serviço de usuário `openclaw-gateway` (linger), agents `analista`/`sentinela` com skill `o51nt-api`, `tools.deny` exec/browser, Telegram allowlist 371824016, `tools.sessions.visibility=agent`, `agentToAgent` off. Armadilhas: rodar `openclaw` com `cd ~openclaw` (EACCES na sondagem do Node); o drop-in systemd só pode existir DEPOIS de `gateway install --force` |
 | 7 | Fechamento SSH: `PermitRootLogin no`, `PasswordAuthentication no` | ✅ 2026-10-09 | `deploy/vps/06_ssh.sh` → `/etc/ssh/sshd_config.d/90-o51nt.conf` (`AllowUsers o51nt`). Validado: `o51nt` por chave + sudo OK; root e senha recusados |
 | 8 | Verificação ponta a ponta + relatório (`deploy/vps/RELATORIO_IMPLANTACAO.md`) | ✅ 2026-10-09 | Todos os serviços ativos, watchdog vivo, HTTPS 401/200/403, ciclo do Radar OK, 0 erros no journal. **Pendência única:** chaves (Anthropic/OpenAI/Telegram) ainda não gravadas → `sudo bash /opt/o51nt/app/deploy/vps/segredos.sh` na VM (interativo). Até lá Telegram e LLM do OpenClaw ficam inativos |
+| 10 | **Assistente de IA autônomo** (pipeline OpenClaw), fontes do tipo página, ferramentas Kali na VPS | ✅ código 2026-10-09 (implantação na VPS registrada abaixo quando concluída) | Ver seção "Assistente de IA". Scripts: `05_openclaw.sh` (reexecutar), `08_ferramentas.sh` (novo), `03_o51nt.sh` (deps: trafilatura). Ligar em Tema → Assistente de IA |
 | 9 | **Login do painel**: e-mail autorizado + código de uso único; usuários só por admin; auditoria; fail2ban no Caddy; preparação Cloudflare | ✅ 2026-10-09 (SMTP pendente: até lá o código cai no journal) | Admin `adiogo27@gmail.com` (`O51NT_ADMIN_EMAIL` no `.env`). Código: `backend/app/{services/auth.py,middleware_auth.py,routers/auth.py,models/auth.py}`, `frontend/src/{lib/auth.tsx,pages/Login,pages/Usuarios}`. Entrega do código: SMTP → Telegram do usuário → journal. Isenção: acesso loopback **sem** `X-Forwarded-For` (OpenClaw/health). Anti-CSRF: cookie `SameSite=Strict` + `X-Requested-With: O51NT`. Caddy: basic auth mantida como 1ª camada, `confiaveis.caddy`, `X-Real-IP`, CSP em modo relatório; jail `o51nt-caddy`. Cloudflare: `07_cloudflare.sh` (faixas + `--fechar`) e `CLOUDFLARE.md` (passos no painel do dono: DNS proxied, WAF, rate limit, Zero Trust Access com PIN por e-mail) |
 
 Estado dos segredos (2026-10-09 19h UTC): Telegram OK (bot responde; exige `/start` do usuário antes), SMTP Gmail OK (código de login chega por e-mail), OpenAI OK (fallback do OpenClaw = `openai/gpt-5.5`), Anthropic OK desde 19h40 UTC (chave trocada pelo dono; agents respondem em `claude-sonnet-5-5`, fallback `openai/gpt-5.5`). OCR (rapidocr) instalado na VPS e validado com cartaz sintético. Armadilhas vistas: senha de app digitada no campo SMTP_HOST; OpenClaw reescreve `openclaw.json` em JSON (usar `openclaw config set`, não `sed`).

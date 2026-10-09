@@ -9,14 +9,14 @@ import { formatDate, openExternal } from "@/lib/utils";
 
 export const SEV_VARIANT: Record<Severidade, "muted" | "default" | "warning" | "danger"> = { baixa: "muted", media: "default", alta: "warning", critica: "danger" };
 export const SEV_LABEL: Record<Severidade, string> = { baixa: "baixa", media: "média", alta: "alta", critica: "CRÍTICA" };
-const TIPO_LABEL: Record<Alerta["tipo"], string> = { convocacao: "Convocação", convite: "Convite", radar: "Radar" };
+const TIPO_LABEL: Record<Alerta["tipo"], string> = { convocacao: "Convocação", convite: "Convite", radar: "Radar", ia: "IA" };
 
 function Linha({ a }: { a: Alerta }) {
   const qc = useQueryClient();
   const inval = () => { void qc.invalidateQueries({ queryKey: ["alertas"] }); void qc.invalidateQueries({ queryKey: ["alertas-contagem"] }); };
   const lido = useMutation({ mutationFn: () => api.patch(`/api/alertas/${a.id}`, { lido: !a.lido }), onSuccess: inval });
   const del = useMutation({ mutationFn: () => api.del(`/api/alertas/${a.id}`), onSuccess: inval });
-  const destino = a.deteccao_id ? `/convocacoes?deteccao=${a.deteccao_id}` : a.invite_id ? "/invites" : a.monitor_id ? "/monitors" : null;
+  const destino = a.tipo === "ia" ? `/ia?alerta=${a.id}` : a.deteccao_id ? `/convocacoes?deteccao=${a.deteccao_id}` : a.invite_id ? "/invites" : a.monitor_id ? "/monitors" : null;
   return (
     <li className={`rounded-md border border-border p-3 text-sm ${a.lido ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
@@ -54,7 +54,7 @@ export default function AlertasPage() {
   });
   return (
     <>
-      <PageHeader title="Alertas" description="Caixa de entrada: convocações detectadas, convites relevantes e resultados do Radar. O JSONL em data/alerts/ e o webhook continuam sendo emitidos.">
+      <PageHeader title="Alertas" description="Caixa de entrada: convocações detectadas, convites relevantes, resultados do Radar e triagens do assistente de IA. O JSONL em data/alerts/ e o webhook continuam sendo emitidos.">
         <Button variant="outline" size="sm" onClick={() => todos.mutate()} disabled={todos.isPending}><CheckCheck size={14} /> Marcar todos como lidos</Button>
       </PageHeader>
       <Card>
@@ -64,6 +64,7 @@ export default function AlertasPage() {
             <option value="convocacao">Convocações</option>
             <option value="convite">Convites</option>
             <option value="radar">Radar</option>
+            <option value="ia">IA</option>
           </Select>
           <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={soNaoLidos} onChange={(e) => setSoNaoLidos(e.target.checked)} /> só não lidos</label>
           <span className="text-xs text-muted-foreground">{data.length} alerta(s)</span>

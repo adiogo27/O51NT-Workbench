@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Newspaper, Pause, Play, RefreshCw, Rss, Trash2, Zap } from "lucide-react";
+import { Bot, Check, ExternalLink, Newspaper, Pause, Play, RefreshCw, Rss, Trash2, Zap } from "lucide-react";
 import * as React from "react";
 import { DeeplinkButtons, ErrorText } from "@/components/shared";
 import { Alert, Badge, Button, Card, CardTitle, Empty, Field, Input, PageHeader, Select, TabPanel, Tabs, Textarea } from "@/components/ui";
@@ -173,11 +173,15 @@ function FontesTab() {
   const qc = useQueryClient();
   const { data: fontes = [], error } = useQuery({ queryKey: ["fontes"], queryFn: () => api.get<Fonte[]>("/api/radar/fontes") });
   const { data: catalogo = [] } = useQuery({ queryKey: ["fontes-catalogo"], queryFn: () => api.get<FonteCatalogo[]>("/api/radar/fontes/catalogo") });
-  const [f, setF] = React.useState({ nome: "", url: "", categoria: "imprensa", respeitar_robots: true });
+  const vazio = { nome: "", url: "", categoria: "imprensa", respeitar_robots: true, tipo: "feed" as "feed" | "pagina", intervalo_min: "" };
+  const [f, setF] = React.useState(vazio);
   const [teste, setTeste] = React.useState<FonteTeste | null>(null);
   const inval = () => { void qc.invalidateQueries({ queryKey: ["fontes"] }); void qc.invalidateQueries({ queryKey: ["fontes-catalogo"] }); void qc.invalidateQueries({ queryKey: ["radar-status"] }); };
   const testar = useMutation({ mutationFn: () => api.post<FonteTeste>("/api/radar/fontes/testar", { url: f.url, respeitar_robots: f.respeitar_robots }), onSuccess: setTeste });
-  const criar = useMutation({ mutationFn: () => api.post<Fonte>("/api/radar/fontes", f), onSuccess: () => { setF({ nome: "", url: "", categoria: "imprensa", respeitar_robots: true }); setTeste(null); inval(); } });
+  const criar = useMutation({
+    mutationFn: () => api.post<Fonte>("/api/radar/fontes", { ...f, intervalo_min: f.intervalo_min ? Number(f.intervalo_min) : null }),
+    onSuccess: () => { setF(vazio); setTeste(null); inval(); },
+  });
   const addCatalogo = useMutation({ mutationFn: (c: FonteCatalogo) => api.post<Fonte>("/api/radar/fontes", { nome: c.nome, url: c.url, categoria: c.categoria }), onSuccess: inval });
   const toggle = useMutation({ mutationFn: (x: Fonte) => api.patch(`/api/radar/fontes/${x.id}`, { ativa: !x.ativa }), onSuccess: inval });
   const coletar = useMutation({ mutationFn: (id: number) => api.post(`/api/radar/fontes/${id}/coletar`), onSuccess: () => { inval(); void qc.invalidateQueries({ queryKey: ["radar-hits"] }); void qc.invalidateQueries({ queryKey: ["monitors"] }); } });
@@ -198,6 +202,8 @@ function FontesTab() {
                     <div className="flex flex-wrap items-center gap-2">
                       <strong>{x.nome}</strong>
                       <Badge>{x.categoria}</Badge>
+                      {x.tipo === "pagina" && <Badge variant="accent">página</Badge>}
+                      {x.intervalo_min ? <Badge variant="muted">a cada {x.intervalo_min} min</Badge> : null}
                       <Badge variant={x.ativa ? "success" : "muted"}>{x.ativa ? "ativa" : "inativa"}</Badge>
                       {!x.respeitar_robots && <Badge variant="warning">ignora robots.txt</Badge>}
                       {x.ultimo_erro && <Badge variant="danger">erro</Badge>}
@@ -240,10 +246,19 @@ function FontesTab() {
       </div>
       <div className="space-y-4 lg:col-span-2">
         <Card>
-          <CardTitle>Nova fonte (RSS/Atom)</CardTitle>
+          <CardTitle>Nova fonte (RSS/Atom ou página de notícias)</CardTitle>
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); criar.mutate(); }}>
             <Field label="Nome da fonte" htmlFor="fo-nome"><Input id="fo-nome" required value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Google Alertas — PRF blitz" /></Field>
-            <Field label="URL do feed" htmlFor="fo-url"><Input id="fo-url" type="url" required value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} placeholder="https://…/feed.xml" /></Field>
+            <Field label="Tipo da fonte" htmlFor="fo-tipo" hint="página = HTML sem RSS; os links de matérias são extraídos a cada verificação (se a página anunciar um RSS, ele é adotado).">
+              <Select id="fo-tipo" value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as "feed" | "pagina" })}>
+                <option value="feed">feed RSS/Atom</option>
+                <option value="pagina">página de notícias (HTML)</option>
+              </Select>
+            </Field>
+            <Field label={f.tipo === "pagina" ? "URL da página" : "URL do feed"} htmlFor="fo-url"><Input id="fo-url" type="url" required value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} placeholder={f.tipo === "pagina" ? "https://…/ultimas-noticias" : "https://…/feed.xml"} /></Field>
+            <Field label="Intervalo próprio (min)" htmlFor="fo-int" hint="vazio = segue o intervalo global do Radar">
+              <Input id="fo-int" type="number" min={1} max={10080} value={f.intervalo_min} onChange={(e) => setF({ ...f, intervalo_min: e.target.value })} placeholder="ex.: 60" />
+            </Field>
             <Field label="Categoria da fonte" htmlFor="fo-cat">
               <Select id="fo-cat" value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })}>
                 {["imprensa", "oficial", "rede", "alerta", "outro"].map((c) => <option key={c}>{c}</option>)}
@@ -260,7 +275,8 @@ function FontesTab() {
             <ErrorText error={testar.error ?? criar.error} />
             {teste && (
               <Alert variant={teste.ok ? "success" : "error"}>
-                {teste.ok ? `${teste.itens} item(ns) lidos (HTTP ${teste.status}).` : `Falhou: ${teste.erro}`} {teste.robots_permite ? "" : " robots.txt não permite esta URL."}
+                {teste.ok ? `${teste.itens} item(ns) lidos (HTTP ${teste.status})${teste.tipo_detectado === "pagina" ? " — reconhecida como página HTML" : ""}.` : `Falhou: ${teste.erro}`} {teste.robots_permite ? "" : " robots.txt não permite esta URL."}
+                {teste.feed_descoberto && <span className="block">A página anuncia um RSS: <span className="code">{teste.feed_descoberto}</span> (será adotado automaticamente).</span>}
                 {teste.ok && teste.amostra.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs">{teste.amostra.map((a) => <li key={a.url}>{a.titulo}</li>)}</ul>}
               </Alert>
             )}
@@ -278,7 +294,7 @@ function FontesTab() {
 function NovoMonitor() {
   const qc = useQueryClient();
   const { data: templates = [] } = useQuery({ queryKey: ["templates"], queryFn: () => api.get<Template[]>("/api/query/templates") });
-  const [f, setF] = React.useState({ nome: "", query: "", cron: "0 */6 * * *", canal_alerta: "jsonl", webhook_url: "", radar_modo: "termos" });
+  const [f, setF] = React.useState({ nome: "", query: "", cron: "0 */6 * * *", canal_alerta: "jsonl", webhook_url: "", radar_modo: "termos", ia: true });
   const criar = useMutation({
     mutationFn: () => api.post<Monitor>("/api/monitors", { ...f, webhook_url: f.webhook_url || null }),
     onSuccess: () => {
@@ -311,6 +327,9 @@ function NovoMonitor() {
             <option value="termos">termos (recomendado)</option>
             <option value="estrito">estrito (respeita site:)</option>
           </Select>
+        </Field>
+        <Field label="Triagem pela IA" htmlFor="mia" hint="hits deste monitor entram na fila do assistente (quando ele estiver ligado em Tema)">
+          <label className="flex h-9 items-center gap-2 text-sm"><input id="mia" type="checkbox" checked={f.ia} onChange={(e) => setF({ ...f, ia: e.target.checked })} /> sim</label>
         </Field>
         <Field label="Cron (min hora dia mês dia-semana) — America/Sao_Paulo" htmlFor="mcron">
           <Input id="mcron" value={f.cron} onChange={(e) => setF({ ...f, cron: e.target.value })} className="font-mono" />
@@ -400,6 +419,7 @@ function MonitoresTab({ monitores, error }: { monitores: Monitor[]; error: unkno
   };
   const run = useMutation({ mutationFn: (id: number) => api.post(`/api/monitors/${id}/run-now`), onSuccess: inval });
   const toggle = useMutation({ mutationFn: (m: Monitor) => api.patch(`/api/monitors/${m.id}`, { ativo: !m.ativo }), onSuccess: inval });
+  const toggleIa = useMutation({ mutationFn: (m: Monitor) => api.patch(`/api/monitors/${m.id}`, { ia: !m.ia }), onSuccess: inval });
   const del = useMutation({ mutationFn: (id: number) => api.del(`/api/monitors/${id}`), onSuccess: inval });
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -418,6 +438,7 @@ function MonitoresTab({ monitores, error }: { monitores: Monitor[]; error: unkno
                     <span className="text-sm">{m.nome}</span> <Badge>{m.tipo}</Badge> <Badge variant={m.ativo ? "success" : "muted"}>{m.ativo ? "ativo" : "pausado"}</Badge>{" "}
                     <Badge variant={m.hits_novos ? "warning" : "muted"}>{m.hits_novos ? `${m.hits_novos} novo(s)` : `${m.hits_total} hit(s)`}</Badge>
                     {m.radar_modo === "estrito" && <Badge variant="accent">estrito</Badge>}
+                    {m.ia && <Badge variant="accent">IA</Badge>}
                     <span className="code block text-xs font-normal text-muted-foreground">{m.query}</span>
                     <span className="block text-xs font-normal text-muted-foreground">
                       cron <code>{m.cron}</code> · última {formatDate(m.ultima_execucao)} · próxima {formatDate(m.proxima_execucao)}
@@ -425,6 +446,9 @@ function MonitoresTab({ monitores, error }: { monitores: Monitor[]; error: unkno
                   </button>
                   <Button size="sm" variant="outline" onClick={() => run.mutate(m.id)} disabled={run.isPending} aria-label={`Executar ${m.nome} agora`}>
                     <Zap size={14} /> Executar agora
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => toggleIa.mutate(m)} aria-label={m.ia ? `Tirar ${m.nome} da IA` : `Enviar ${m.nome} à IA`} title={m.ia ? "hits vão para o assistente de IA" : "fora do assistente de IA"}>
+                    <Bot size={14} className={m.ia ? "" : "opacity-40"} />
                   </Button>
                   <Button size="icon" variant="ghost" onClick={() => toggle.mutate(m)} aria-label={m.ativo ? `Pausar ${m.nome}` : `Ativar ${m.nome}`}>
                     {m.ativo ? <Pause size={14} /> : <Play size={14} />}
@@ -436,7 +460,7 @@ function MonitoresTab({ monitores, error }: { monitores: Monitor[]; error: unkno
               ))}
             </ul>
           )}
-          <ErrorText error={run.error ?? toggle.error ?? del.error} />
+          <ErrorText error={run.error ?? toggle.error ?? toggleIa.error ?? del.error} />
         </Card>
         {atual && <HitsDoMonitor monitor={atual} />}
         {atual && (

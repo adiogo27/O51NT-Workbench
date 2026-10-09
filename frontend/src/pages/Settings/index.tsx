@@ -201,6 +201,43 @@ export default function SettingsPage() {
           </div>
         </Card>
         <Card className="lg:col-span-2">
+          <CardTitle>Assistente de IA (OpenClaw)</CardTitle>
+          <p className="mb-2 text-xs text-muted-foreground">Só o que casou com os termos dos monitores vai para a IA. Cadeia sentinela → extrator → pesquisador → analista; alertas automáticos; Boletim e Agenda conforme a política abaixo. Token do gateway e chaves ficam no servidor.</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Assistente ligado" htmlFor="ia-ativo">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="ia-ativo" type="checkbox" checked={draft.preferencias.iaAtivo} onChange={(e) => setPref("iaAtivo", e.target.checked)} /> ligado</label>
+            </Field>
+            <Field label="Intervalo da fila (min)" htmlFor="ia-int"><Input id="ia-int" type="number" min={1} max={1440} value={draft.preferencias.iaIntervaloMin} onChange={(e) => setPref("iaIntervaloMin", Number(e.target.value))} /></Field>
+            <Field label="Máx. itens por ciclo" htmlFor="ia-max"><Input id="ia-max" type="number" min={1} max={500} value={draft.preferencias.iaMaxItensCiclo} onChange={(e) => setPref("iaMaxItensCiclo", Number(e.target.value))} /></Field>
+            <Field label="Teto diário (US$, 0 = sem teto)" htmlFor="ia-teto"><Input id="ia-teto" type="number" step={0.5} min={0} max={1000} value={draft.preferencias.iaCustoDiarioUsd} onChange={(e) => setPref("iaCustoDiarioUsd", Number(e.target.value))} /></Field>
+            <Field label="Boletim" htmlFor="ia-bol" hint="o que fazer com itens RELEVANTE">
+              <Select id="ia-bol" value={draft.preferencias.iaBoletim} onChange={(e) => setPref("iaBoletim", e.target.value as "auto" | "aprovar" | "nunca")}><option value="aprovar">só com aprovação</option><option value="auto">automático</option><option value="nunca">nunca</option></Select>
+            </Field>
+            <Field label="Agenda" htmlFor="ia-ag" hint="eventos extraídos com data">
+              <Select id="ia-ag" value={draft.preferencias.iaAgenda} onChange={(e) => setPref("iaAgenda", e.target.value as "auto" | "aprovar" | "nunca")}><option value="aprovar">só com aprovação</option><option value="auto">automático</option><option value="nunca">nunca</option></Select>
+            </Field>
+            <Field label="Pesquisador automático a partir de" htmlFor="ia-pesq" hint="etapa mais cara: verifica fontes na web">
+              <Select id="ia-pesq" value={draft.preferencias.iaPesquisarSeveridadeMin} onChange={(e) => setPref("iaPesquisarSeveridadeMin", e.target.value as Preferencias["iaPesquisarSeveridadeMin"])}><option value="baixa">qualquer RELEVANTE</option><option value="media">média</option><option value="alta">alta</option><option value="critica">crítica</option><option value="nunca">só sob pedido</option></Select>
+            </Field>
+            <Field label="Resumo dos OBSERVAR (horas)" htmlFor="ia-res"><Input id="ia-res" type="number" min={1} max={168} value={draft.preferencias.iaResumoHoras} onChange={(e) => setPref("iaResumoHoras", Number(e.target.value))} /></Field>
+            <Field label="Modelo da triagem" htmlFor="ia-mt" hint="barato: 1 chamada por item"><Input id="ia-mt" value={draft.preferencias.iaModeloTriagem} onChange={(e) => setPref("iaModeloTriagem", e.target.value)} /></Field>
+            <Field label="Modelo das demais etapas" htmlFor="ia-mp" hint="vazio = padrão configurado no OpenClaw"><Input id="ia-mp" value={draft.preferencias.iaModeloPadrao ?? ""} onChange={(e) => setPref("iaModeloPadrao", e.target.value || null)} placeholder="anthropic/claude-sonnet-5-5" /></Field>
+            <Field label="Texto da matéria (máx. caracteres)" htmlFor="ia-txt"><Input id="ia-txt" type="number" min={500} max={30000} value={draft.preferencias.iaTextoMaxChars} onChange={(e) => setPref("iaTextoMaxChars", Number(e.target.value))} /></Field>
+            <Field label="Telegram imediato para RELEVANTE" htmlFor="ia-tg">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="ia-tg" type="checkbox" checked={draft.preferencias.iaTelegramRelevante} onChange={(e) => setPref("iaTelegramRelevante", e.target.checked)} /> sim</label>
+            </Field>
+            <Field label="Suprimir alerta bruto do Radar" htmlFor="ia-sup" hint="o 'N novos resultados' dá lugar ao cartão triado">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="ia-sup" type="checkbox" checked={draft.preferencias.iaSuprimirAlertasBrutos} onChange={(e) => setPref("iaSuprimirAlertasBrutos", e.target.checked)} /> sim</label>
+            </Field>
+            <Field label="Marcar DESCARTAR como lido" htmlFor="ia-lido">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="ia-lido" type="checkbox" checked={draft.preferencias.iaMarcarLidos} onChange={(e) => setPref("iaMarcarLidos", e.target.checked)} /> sim</label>
+            </Field>
+            <Field label="Ferramentas sensíveis (LGPD)" htmlFor="fer-sens" hint="holehe, h8mail, phoneinfoga: dados pessoais de terceiros; cada uso é auditado">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="fer-sens" type="checkbox" checked={draft.preferencias.ferramentasSensiveisAtivas} onChange={(e) => setPref("ferramentasSensiveisAtivas", e.target.checked)} /> habilitadas</label>
+            </Field>
+          </div>
+        </Card>
+        <Card className="lg:col-span-2">
           <CardTitle>Convites (verificação de links de grupo)</CardTitle>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Respeitar robots.txt ao testar" htmlFor="inv-robots" hint="t.me / whatsapp.com; pode ser ignorado por link, com aviso">

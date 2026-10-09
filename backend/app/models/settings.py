@@ -48,6 +48,22 @@ class Preferencias(BaseModel):
     convitesRespeitarRobots: bool = True
     convitesVerificarAuto: bool = False
     convitesVerificarIntervaloHoras: int = Field(default=24, ge=1, le=720)
+    # Assistente de IA (OpenClaw): só recebe o que casou com os termos dos monitores
+    iaAtivo: bool = False
+    iaIntervaloMin: int = Field(default=5, ge=1, le=1440)
+    iaMaxItensCiclo: int = Field(default=25, ge=1, le=500)
+    iaCustoDiarioUsd: float = Field(default=3.0, ge=0, le=1000)
+    iaModeloTriagem: str = Field(default="anthropic/claude-haiku-5-5", max_length=120)  # barato: 1 chamada por item
+    iaModeloPadrao: str | None = Field(default=None, max_length=120)  # None = modelo configurado no OpenClaw
+    iaPesquisarSeveridadeMin: Literal["baixa", "media", "alta", "critica", "nunca"] = "alta"  # pesquisador automático
+    iaBoletim: Literal["auto", "aprovar", "nunca"] = "aprovar"
+    iaAgenda: Literal["auto", "aprovar", "nunca"] = "aprovar"
+    iaTelegramRelevante: bool = True
+    iaResumoHoras: int = Field(default=2, ge=1, le=168)  # resumo periódico dos OBSERVAR
+    iaSuprimirAlertasBrutos: bool = True  # com IA ativa, o alerta "N novos resultados" do Radar não é emitido
+    iaMarcarLidos: bool = True  # hits DESCARTAR pela IA ficam marcados como lidos
+    iaTextoMaxChars: int = Field(default=6000, ge=500, le=30000)
+    ferramentasSensiveisAtivas: bool = False  # holehe / h8mail / phoneinfoga (dados pessoais — LGPD)
 
     @model_validator(mode="after")
     def _limiares(self) -> "Preferencias":

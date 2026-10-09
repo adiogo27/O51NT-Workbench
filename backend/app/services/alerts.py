@@ -21,7 +21,7 @@ logger = logging.getLogger("o51nt.alerts")
 TELEGRAM_NAO_CONFIGURADO = "Telegram não configurado: defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID no .env e reinicie"
 TELEGRAM_MAX = 4000  # limite da API é 4096; margem para o rodapé
 _EMOJI_SEVERIDADE = {"critica": "🚨", "alta": "🔴", "media": "🟠", "baixa": "🟡"}
-_EMOJI_TIPO = {"radar": "📡", "convocacao": "📣", "convite": "🔗", "hashtag": "#️⃣", "agenda": "📅", "teste": "✅"}
+_EMOJI_TIPO = {"ia": "🤖", "radar": "📡", "convocacao": "📣", "convite": "🔗", "hashtag": "#️⃣", "agenda": "📅", "teste": "✅"}
 
 
 def gravar_jsonl(evento: dict[str, Any]) -> str:

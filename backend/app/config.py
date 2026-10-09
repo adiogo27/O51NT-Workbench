@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     auth_sessao_inatividade_min: int = 120
     auth_cookie_secure: bool = True
     app_url: str = "https://o51nt.sentinela.api.br"
+    # Assistente de IA: gateway do OpenClaw (loopback) e ferramentas OSINT instaladas no servidor
+    openclaw_url: str = Field(default="http://127.0.0.1:18789", validation_alias=AliasChoices("O51NT_OPENCLAW_URL", "OPENCLAW_URL"))
+    openclaw_gateway_token: str | None = Field(default=None, validation_alias=AliasChoices("O51NT_OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_TOKEN"))
+    openclaw_timeout_s: float = 180.0
+    ferramentas_dir: Path = Path("/opt/o51nt/ferramentas/bin")  # binários das ferramentas (08_ferramentas.sh); acrescido ao PATH
 
     @property
     def auth_enabled(self) -> bool:

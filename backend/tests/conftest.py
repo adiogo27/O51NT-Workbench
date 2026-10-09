@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 
+import json
+from typing import Any
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +13,7 @@ from fastapi.testclient import TestClient
 from app import config, db
 from app.services import auth as auth_svc
 from app.services import scheduler, scraper, searxng_client
+from app.services.ia import cliente_openclaw
 
 
 class FakeFetcher:
@@ -64,6 +68,42 @@ class FakeSearxng:
         return httpx.Response(200, json={"query": params.get("q"), "results": self.respostas.get(params.get("q", ""), []), "unresponsive_engines": []})
 
 
+class FakeOpenClaw:
+    """Simula o endpoint /v1/chat/completions do gateway OpenClaw: respostas por agent (FIFO; a última repete)."""
+
+    def __init__(self) -> None:
+        self.respostas: dict[str, list[Any]] = {}
+        self.chamadas: list[dict[str, Any]] = []
+        self.status = 200
+        self.alcancavel = True
+
+    def responder(self, agent: str, *respostas: Any) -> None:
+        self.respostas.setdefault(agent, []).extend(respostas)
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if not self.alcancavel:
+            raise httpx.ConnectError("gateway fora do ar", request=request)
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"ok": True, "status": "live"})
+        if request.url.path != "/v1/chat/completions":
+            return httpx.Response(404)
+        if self.status != 200:
+            return httpx.Response(self.status, text="erro simulado")
+        corpo = json.loads(request.content)
+        agent = str(corpo.get("model", "")).split("/", 1)[-1]
+        self.chamadas.append({"agent": agent, "modelo": request.headers.get("x-openclaw-model"), "auth": request.headers.get("authorization"), "max_tokens": corpo.get("max_completion_tokens"), "mensagem": corpo["messages"][0]["content"]})
+        fila = self.respostas.get(agent) or []
+        if not fila:
+            r: Any = {"veredito": "DESCARTAR", "severidade": "baixa", "justificativa": "sem resposta configurada"}
+        elif len(fila) > 1:
+            r = fila.pop(0)
+        else:
+            r = fila[0]
+        texto = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
+        modelo = request.headers.get("x-openclaw-model") or "anthropic/claude-sonnet-5-5"
+        return httpx.Response(200, json={"id": "chatcmpl-x", "model": modelo.split("/")[-1], "choices": [{"index": 0, "message": {"role": "assistant", "content": texto}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 1000, "completion_tokens": 100, "total_tokens": 1100}})
+
+
 @pytest.fixture
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Diretório de dados isolado por teste (permite rodar em paralelo com xdist)."""
@@ -83,6 +123,7 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     scraper.set_scraper(None)
     searxng_client.set_searxng(None)
     scheduler.parar()
+    cliente_openclaw.set_cliente(None)
     auth_svc.reset_cache()
     config.get_settings.cache_clear()
 
@@ -109,7 +150,14 @@ def fake_searxng(data_dir: Path) -> FakeSearxng:
 
 
 @pytest.fixture
-def client(data_dir: Path, fake_scraper: scraper.EthicalScraper, fake_searxng: FakeSearxng) -> Iterator[TestClient]:
+def fake_openclaw(data_dir: Path) -> FakeOpenClaw:
+    fake = FakeOpenClaw()
+    cliente_openclaw.set_cliente(cliente_openclaw.ClienteOpenClaw(base_url="http://openclaw.test", token="token-teste", transport=httpx.MockTransport(fake.handler)))
+    return fake
+
+
+@pytest.fixture
+def client(data_dir: Path, fake_scraper: scraper.EthicalScraper, fake_searxng: FakeSearxng, fake_openclaw: FakeOpenClaw) -> Iterator[TestClient]:
     from app.main import create_app
 
     with TestClient(create_app()) as c:

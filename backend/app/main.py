@@ -16,12 +16,13 @@ from app.config import get_settings
 from app.db import get_engine, init_db
 from app.logging_config import configure_logging
 from app.middleware_auth import AuthMiddleware
-from app.routers import agenda, alertas, auth, boletim, convocacoes, evidence, hashtags, images, invites, monitors, perfis, query_builder, radar, scraping, settings, tools
+from app.routers import agenda, alertas, auth, boletim, convocacoes, evidence, ferramentas, hashtags, ia, images, invites, monitors, perfis, query_builder, radar, scraping, settings, tools
 from app.seed import seed_fontes, seed_templates
 from app.services import auth as auth_svc
 from app.services import radar as radar_svc  # alias: `radar` já é o router importado acima
 from app.services import retention, scheduler
 from app.services.scraper import shutdown_scraper
+from app.services.ia.cliente_openclaw import shutdown_cliente
 from app.services.searxng_client import shutdown_searxng
 
 logger = logging.getLogger("o51nt")
@@ -53,12 +54,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     scheduler.parar()
     await shutdown_scraper()
     await shutdown_searxng()
+    await shutdown_cliente()
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="O51NT Workbench", version=__version__, lifespan=lifespan)
     app.add_middleware(AuthMiddleware)
-    for r in (auth, query_builder, scraping, monitors, invites, tools, evidence, hashtags, images, settings, agenda, perfis, boletim, radar, convocacoes, alertas):
+    for r in (auth, query_builder, scraping, monitors, invites, tools, evidence, hashtags, images, settings, agenda, perfis, boletim, radar, convocacoes, alertas, ia, ferramentas):
         app.include_router(r.router)
 
     @app.get("/api/health", tags=["system"])

@@ -272,6 +272,79 @@ def agendar_convites() -> None:
     )
 
 
+IA_JOB_ID = "ia-pipeline"
+IA_RESUMO_JOB_ID = "ia-resumo"
+
+
+async def executar_ia() -> None:
+    from app.services.ia import pipeline
+
+    with Session(get_engine()) as session:
+        try:
+            await pipeline.processar_fila(session)
+        except Exception:
+            logger.exception("falha no ciclo do assistente de IA")
+
+
+async def executar_ia_resumo() -> None:
+    from app.services.ia import pipeline
+
+    with Session(get_engine()) as session:
+        try:
+            await pipeline.enviar_resumo(session)
+        except Exception:
+            logger.exception("falha no resumo periódico da IA")
+
+
+def job_ia():  # noqa: ANN201
+    return _scheduler.get_job(IA_JOB_ID) if _scheduler is not None else None
+
+
+def job_ia_resumo():  # noqa: ANN201
+    return _scheduler.get_job(IA_RESUMO_JOB_ID) if _scheduler is not None else None
+
+
+def agendar_ia() -> None:
+    """Fila do assistente (iaAtivo/iaIntervaloMin) + resumo periódico dos OBSERVAR (iaResumoHoras)."""
+    if _scheduler is None:
+        return
+    from app.routers.settings import carregar
+
+    prefs = carregar().preferencias
+    if not prefs.iaAtivo:
+        for jid in (IA_JOB_ID, IA_RESUMO_JOB_ID):
+            if _scheduler.get_job(jid):
+                _scheduler.remove_job(jid)
+        return
+    _scheduler.add_job(
+        executar_ia,
+        trigger=IntervalTrigger(minutes=prefs.iaIntervaloMin, timezone=_tz()),
+        id=IA_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=600,
+        next_run_time=datetime.now(_tz()) + timedelta(seconds=60),
+    )
+    _scheduler.add_job(
+        executar_ia_resumo,
+        trigger=IntervalTrigger(hours=prefs.iaResumoHoras, timezone=_tz()),
+        id=IA_RESUMO_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=1800,
+        next_run_time=datetime.now(_tz()) + timedelta(hours=prefs.iaResumoHoras),
+    )
+
+
+def acordar_ia(segundos: int = 10) -> None:
+    """Antecipa o próximo ciclo do assistente (ex.: logo após um ciclo do Radar com hits)."""
+    job = job_ia()
+    if job is not None:
+        job.modify(next_run_time=datetime.now(_tz()) + timedelta(seconds=segundos))
+
+
 def iniciar() -> AsyncIOScheduler:
     """Sobe o scheduler e reconstrói os jobs a partir da tabela Monitor."""
     global _scheduler
@@ -291,6 +364,7 @@ def iniciar() -> AsyncIOScheduler:
     agendar_radar()
     agendar_convocacoes()
     agendar_convites()
+    agendar_ia()
     return _scheduler
 
 

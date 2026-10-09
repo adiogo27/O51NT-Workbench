@@ -129,12 +129,18 @@ async def testar_fonte(dados: FonteTesteIn) -> FonteTesteOut:
     res = await scraper.buscar(dados.url, respeitar_robots=dados.respeitar_robots)
     if not res.ok:
         return FonteTesteOut(ok=False, status=res.status, erro=res.erro or f"HTTP {res.status}", robots_permite=permite, itens=0, amostra=[])
+    tipo_detectado = "feed"
+    feed_descoberto: str | None = None
     try:
         itens = svc.parse_feed(res.html)
     except ValueError as exc:
-        return FonteTesteOut(ok=False, status=res.status, erro=str(exc), robots_permite=permite, itens=0, amostra=[])
+        itens = svc.parse_pagina(res.html, dados.url)  # não é RSS: tenta como página de notícias
+        feed_descoberto = svc.descobrir_feed(res.html, dados.url)
+        if not itens and not feed_descoberto:
+            return FonteTesteOut(ok=False, status=res.status, erro=str(exc), robots_permite=permite, itens=0, amostra=[])
+        tipo_detectado = "pagina"
     amostra = [{"titulo": i.titulo, "url": i.url, "publicado_em": i.publicado_em.isoformat() if i.publicado_em else None} for i in itens[:5]]
-    return FonteTesteOut(ok=True, status=res.status, erro=None, robots_permite=permite, itens=len(itens), amostra=amostra)
+    return FonteTesteOut(ok=True, status=res.status, erro=None, robots_permite=permite, itens=len(itens), amostra=amostra, tipo_detectado=tipo_detectado, feed_descoberto=feed_descoberto)
 
 
 @router.get("/fontes/{fonte_id}", response_model=FonteOut)

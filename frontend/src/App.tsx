@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, Clock, FileSearch, Hash, Image, Link2, LogOut, Megaphone, Newspaper, Palette, Search, Users, Wrench } from "lucide-react";
+import { Bell, Bot, CalendarDays, Clock, FileSearch, Hash, Image, Link2, LogOut, Megaphone, Newspaper, Palette, Search, Users, Wrench } from "lucide-react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { AlertasBadge } from "@/components/AlertasBadge";
 import { useAuth } from "@/lib/auth";
@@ -9,6 +9,7 @@ import BoletimPage from "@/pages/Boletim";
 import ConvocacoesPage from "@/pages/Convocacoes";
 import EvidencePage from "@/pages/Evidence";
 import HashtagsPage from "@/pages/Hashtags";
+import IaPage from "@/pages/IA";
 import ImagesPage from "@/pages/Images";
 import InvitesPage from "@/pages/Invites";
 import LoginPage from "@/pages/Login";
@@ -23,6 +24,7 @@ const NAV = [
   { to: "/monitors", label: "Monitores", icon: Clock },
   { to: "/convocacoes", label: "Convocações", icon: Megaphone },
   { to: "/alertas", label: "Alertas", icon: Bell, badge: true },
+  { to: "/ia", label: "Assistente", icon: Bot },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/boletim", label: "Boletim", icon: Newspaper },
   { to: "/invites", label: "Convites", icon: Link2 },
@@ -91,6 +93,7 @@ export default function App() {
           <Route path="/monitors" element={<MonitorsPage />} />
           <Route path="/convocacoes" element={<ConvocacoesPage />} />
           <Route path="/alertas" element={<AlertasPage />} />
+          <Route path="/ia" element={<IaPage />} />
           <Route path="/agenda" element={<AgendaPage />} />
           <Route path="/boletim" element={<BoletimPage />} />
           <Route path="/invites" element={<InvitesPage />} />

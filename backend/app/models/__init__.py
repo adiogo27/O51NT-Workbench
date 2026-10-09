@@ -8,6 +8,7 @@ from app.models.boletim import BoletimItem, Perfil
 from app.models.convocacao import Deteccao, DeteccaoOcorrencia, FonteConvocacao, ReferenciaCartaz
 from app.models.evidence import Evidence
 from app.models.hashtag import Hashtag, HashtagSnapshot
+from app.models.ia import FerramentaExecucao, IaCusto, IaTarefa
 from app.models.invite import Invite
 from app.models.monitor import Monitor, MonitorRun
 from app.models.query import QueryHistory
@@ -27,6 +28,9 @@ __all__ = [
     "DomainBackoff",
     "Perfil",
     "Evidence",
+    "FerramentaExecucao",
+    "IaCusto",
+    "IaTarefa",
     "Fonte",
     "FonteConvocacao",
     "FonteItem",

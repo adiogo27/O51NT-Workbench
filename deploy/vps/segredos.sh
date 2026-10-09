@@ -8,7 +8,7 @@ OC=/home/openclaw/.openclaw
 umask 077
 
 ler() { # ler VAR "rótulo"  → define $VALOR (vazio = manter)
-  local atual=""; atual=$(grep -E "^$1=" "$ENV_APP" 2>/dev/null | head -1 | cut -d= -f2- || true)
+  local atual=""; atual=$(grep -hE "^$1=" "$ENV_APP" "$OC/secrets.env" 2>/dev/null | head -1 | cut -d= -f2- || true)
   printf '%s%s: ' "$2" "$([[ -n "$atual" ]] && echo ' [já definido; Enter mantém]' || echo '')"
   IFS= read -rs VALOR; echo
   [[ -n "$VALOR" ]] || VALOR="$atual"
@@ -40,9 +40,10 @@ ler_visivel SMTP_FROM "Remetente (From, um e-mail)" "$SU";   SF="$VALOR"
 
 gravar "$ENV_APP" TELEGRAM_BOT_TOKEN "$TG"
 gravar "$ENV_APP" TELEGRAM_CHAT_ID "${TELEGRAM_CHAT_ID:-371824016}"
-gravar "$ENV_APP" ANTHROPIC_API_KEY "$AN"
-gravar "$ENV_APP" OPENAI_API_KEY "$OA"
-gravar "$ENV_APP" ANTHROPIC_WORKSPACE_ID "$AW"
+# chaves de LLM ficam só no OpenClaw (o app não as usa); remove restos de versões anteriores
+gravar "$ENV_APP" ANTHROPIC_API_KEY ""
+gravar "$ENV_APP" OPENAI_API_KEY ""
+gravar "$ENV_APP" ANTHROPIC_WORKSPACE_ID ""
 gravar "$ENV_APP" SMTP_HOST "$SH"; gravar "$ENV_APP" SMTP_PORT "$SP"; gravar "$ENV_APP" SMTP_USER "$SU"
 gravar "$ENV_APP" SMTP_PASSWORD "$SS"; gravar "$ENV_APP" SMTP_FROM "$SF"
 grep -q '^O51NT_ADMIN_EMAIL=' "$ENV_APP" || gravar "$ENV_APP" O51NT_ADMIN_EMAIL "adiogo27@gmail.com"

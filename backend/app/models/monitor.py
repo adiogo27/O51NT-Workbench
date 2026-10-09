@@ -18,6 +18,7 @@ class Monitor(SQLModel, table=True):
     webhook_url: str | None = None
     tipo: str = "query"  # query | hashtag
     radar_modo: str = "termos"  # termos (ignora site: no casamento) | estrito (exige o domínio)
+    ia: bool = True  # hits deste monitor entram na fila do assistente de IA (quando iaAtivo)
     ativo: bool = True
     ultima_execucao: datetime | None = None
     proxima_execucao: datetime | None = None
