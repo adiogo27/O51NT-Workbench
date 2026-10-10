@@ -249,7 +249,9 @@ def _regex_termo(valor: str, tipo: TipoToken) -> re.Pattern[str]:
         return re.compile(rf"(?<!\w)#?{re.escape(v.lstrip('#'))}(?!\w)")
     if tipo is TipoToken.MENCAO:
         return re.compile(rf"(?<!\w)@?{re.escape(v.lstrip('@'))}(?!\w)")
-    return re.compile(rf"(?<![\w#@]){re.escape(v)}(?!\w)")
+    # termo solto com curinga: "manifesta*" casa manifestação/manifestantes/manifestam (prefixo/infixo, só dentro da palavra)
+    corpo = re.escape(v).replace(r"\*", r"\w*")
+    return re.compile(rf"(?<![\w#@]){corpo}(?!\w)")
 
 
 # AST: ("and", [nós]) | ("or", [nós]) | ("term", rotulo, regex, negado) | ("op", chave, valor, negado) | ("true",)

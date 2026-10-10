@@ -10,12 +10,14 @@ pytestmark = pytest.mark.integration
 
 def test_fontes_seedadas_e_catalogo(client: TestClient) -> None:
     fontes = client.get("/api/radar/fontes").json()
-    assert len(fontes) == 11 and all(f["ativa"] for f in fontes)
+    from app.seed import FONTES_PADRAO
+
+    assert len(fontes) == len(FONTES_PADRAO) >= 11 and all(f["ativa"] for f in fontes)
     assert {"g1 — política", "Agência Brasil — política", "Mastodon — #eleicoes2026 (mastodon.social)"} <= {f["nome"] for f in fontes}
     cat = client.get("/api/radar/fontes/catalogo").json()
     assert all(c["cadastrada"] for c in cat if c["tipo"] == "feed")
     modelos = [c for c in cat if c["tipo"] == "modelo"]
-    assert {m["nome"] for m in modelos} == {"Google Alertas (feed pessoal)", "Mastodon — hashtag (qualquer instância)"}
+    assert {"Google Alertas (feed pessoal)", "Mastodon — hashtag (qualquer instância)", "Google Notícias — busca (RSS por termo)", "YouTube — canal (feed de vídeos)", "Telegram — canal público (página t.me/s)"} <= {m["nome"] for m in modelos}
     assert all(not m["cadastrada"] for m in modelos)
 
 

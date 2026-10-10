@@ -1,7 +1,7 @@
-import { KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { KeyRound, Mail, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import * as React from "react";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type Usuario } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 const CANAL_MSG: Record<string, string> = {
@@ -15,6 +15,8 @@ const CANAL_MSG: Record<string, string> = {
 export default function LoginPage() {
   const auth = useAuth();
   const [etapa, setEtapa] = React.useState<"email" | "codigo">("email");
+  // Perfil escolhido na tela: o fluxo é o mesmo (e-mail cadastrado + código); "Administrador" só confere o papel ao entrar.
+  const [perfil, setPerfil] = React.useState<"usuario" | "admin">("usuario");
   const [email, setEmail] = React.useState("");
   const [codigo, setCodigo] = React.useState("");
   const [canal, setCanal] = React.useState<string>(auth.canal);
@@ -53,6 +55,14 @@ export default function LoginPage() {
     setOcupado(true);
     try {
       await api.post("/api/auth/verificar", { email: email.trim(), codigo: codigo.replace(/\D/g, "") });
+      if (perfil === "admin") {
+        const eu = await api.get<Usuario>("/api/auth/eu");
+        if (eu.papel !== "admin") {
+          await api.post("/api/auth/sair").catch(() => undefined);
+          setErro("Esta conta não tem perfil de administrador. Entre como Usuário.");
+          return;
+        }
+      }
       await auth.recarregar();
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "falha ao verificar o código");
@@ -71,11 +81,21 @@ export default function LoginPage() {
 
         {etapa === "email" ? (
           <form onSubmit={solicitar} className="space-y-3" aria-label="Identificação">
+            <fieldset className="grid grid-cols-2 gap-2" aria-label="Perfil de acesso">
+              <legend className="mb-1 text-xs text-muted-foreground">Entrar como</legend>
+              <button type="button" aria-pressed={perfil === "usuario"} onClick={() => setPerfil("usuario")} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${perfil === "usuario" ? "border-primary bg-primary/10 font-medium" : "border-border"}`}>
+                <UserRound size={16} aria-hidden /> Usuário
+              </button>
+              <button type="button" aria-pressed={perfil === "admin"} onClick={() => setPerfil("admin")} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${perfil === "admin" ? "border-primary bg-primary/10 font-medium" : "border-border"}`}>
+                <UserCog size={16} aria-hidden /> Administrador
+              </button>
+            </fieldset>
+            <p className="text-xs text-muted-foreground">{perfil === "admin" ? "Administradores cadastram usuários e veem a auditoria. O código de acesso chega pelo e-mail do administrador." : "Somente e-mails cadastrados por um administrador recebem o código de acesso de uso único."}</p>
             <Field label="E-mail autorizado" htmlFor="login-email">
               <Input id="login-email" type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@exemplo.gov.br" />
             </Field>
             <Button type="submit" className="w-full" disabled={ocupado || !email.includes("@")}>
-              <Mail size={16} aria-hidden /> {ocupado ? "Enviando…" : "Receber código de acesso"}
+              <Mail size={16} aria-hidden /> {ocupado ? "Enviando…" : perfil === "admin" ? "Receber código de administrador" : "Receber código de acesso"}
             </Button>
           </form>
         ) : (

@@ -15,6 +15,13 @@ export const MOTOR_LABEL: Record<string, string> = {
   tiktok: "TikTok",
   youtube: "YouTube",
   google_news: "Google Notícias",
+  brave: "Brave",
+  yandex: "Yandex",
+  mojeek: "Mojeek",
+  bing_news: "Bing Notícias",
+  bluesky: "Bluesky",
+  threads: "Threads",
+  reddit: "Reddit",
 };
 
 export function DeeplinkButtons({

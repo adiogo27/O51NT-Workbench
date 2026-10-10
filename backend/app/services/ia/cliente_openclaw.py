@@ -21,12 +21,17 @@ from app.config import get_settings
 logger = logging.getLogger("o51nt.ia")
 
 # estimativa de custo (US$ por 1M tokens: entrada, saída) quando o gateway não informa; serve ao teto diário
+# Lista de preços da Anthropic (2026-10): Haiku 5.5 0,10/0,50 · Sonnet 5.5/5 2/10 · Sonnet 4.6 3/15 · Opus 5.5 4/20 ·
+# Opus 5/4.x 5/25 · Fable/Mythos 10/50. A chave mais específica vem antes (a busca é por substring, na ordem).
 PRECOS_ESTIMADOS: tuple[tuple[str, float, float], ...] = (
-    ("haiku", 1.0, 5.0),
-    ("sonnet", 3.0, 15.0),
-    ("opus", 15.0, 75.0),
-    ("fable", 15.0, 75.0),
-    ("mythos", 15.0, 75.0),
+    ("haiku-4-5", 1.0, 5.0),
+    ("haiku", 0.10, 0.50),
+    ("sonnet-4", 3.0, 15.0),
+    ("sonnet", 2.0, 10.0),
+    ("opus-5-5", 4.0, 20.0),
+    ("opus", 5.0, 25.0),
+    ("fable", 10.0, 50.0),
+    ("mythos", 10.0, 50.0),
     ("gpt", 2.0, 8.0),
 )
 

@@ -282,6 +282,15 @@ def test_tools_checagem_de_fatos_e_busca_em_redes(client: TestClient) -> None:
     # as 16 ferramentas do documento mestre continuam presentes (contrato do hub)
     assert len([t for t in tools if t["categoria"] in {"Twitter - X", "Facebook", "Busca por Imagens", "Ferramentas"}]) == 16
     assert client.get("/api/tools", params={"categoria": "Checagem de fatos"}).json().__len__() == 9
+    # 2026-10-10: buscadores, redes, arquivo e dados oficiais (aditivo; as categorias acima não mudam)
+    assert {"https://search.brave.com/", "https://yandex.com/", "https://www.mojeek.com/", "https://www.bing.com/news"} <= por_cat["Buscadores"]
+    assert {"https://bsky.app/search", "https://www.threads.net/search", "https://www.reddit.com/search/", "https://lyzem.com/"} <= por_cat["Busca em redes"]
+    assert {"https://web.archive.org/", "https://archive.ph/"} == por_cat["Arquivo e registros"]
+    assert {"https://divulgacandcontas.tse.jus.br/divulga/", "https://portaldatransparencia.gov.br/"} == por_cat["Dados oficiais"]
+    r = client.get("/api/tools/deeplink", params={"tool": "wayback", "q": "https://ex.org/p?a=1"}).json()
+    assert r["url"] == "https://web.archive.org/web/*/https%3A%2F%2Fex.org%2Fp%3Fa%3D1" and r["prefill"]
+    r = client.get("/api/tools/deeplink", params={"tool": "bluesky_search", "q": "manifestação BR-116"}).json()
+    assert r["url"].startswith("https://bsky.app/search?q=manifesta") and "BR-116" in r["url"]
 
 
 def test_tools_deeplinks_novos(client: TestClient) -> None:

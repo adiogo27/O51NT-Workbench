@@ -21,6 +21,14 @@ MOTORES_EXTRA: dict[str, str] = {
     "tiktok": "https://www.tiktok.com/search?q={q}",
     "youtube": "https://www.youtube.com/results?search_query={q}",
     "google_news": "https://news.google.com/search?q={q}&hl=pt-BR&gl=BR&ceid=BR%3Apt-419",
+    # 2026-10-10: mais buscadores e redes (decisão do dono). Brave/Yandex/Mojeek honram aspas, - e site:; não honram before:/after:.
+    "brave": "https://search.brave.com/search?q={q}&source=web",
+    "yandex": "https://yandex.com/search/?text={q}",
+    "mojeek": "https://www.mojeek.com/search?q={q}",
+    "bing_news": "https://www.bing.com/news/search?q={q}&setlang=pt-BR&cc=BR",
+    "bluesky": "https://bsky.app/search?q={q}",
+    "threads": "https://www.threads.net/search?q={q}&serp_type=default",
+    "reddit": "https://www.reddit.com/search/?q={q}&sort=new",
 }
 
 _X_OPS: frozenset[str] = OPERADORES_X_CHAVE
@@ -38,6 +46,13 @@ NAO_SUPORTADOS_EXTRA: dict[str, frozenset[str]] = {
     "tiktok": _GOOGLE_OPS | _X_OPS | {"*"},
     "youtube": _GOOGLE_OPS | _X_OPS | {"*"},
     "google_news": _X_OPS | {"*", "filetype", "inurl", "intitle", "intext"},
+    "brave": _X_OPS | {"before", "after", "*", "intext"},
+    "yandex": _X_OPS | {"before", "after", "*", "intext", "filetype"},
+    "mojeek": _X_OPS | {"before", "after", "*", "intext", "inurl", "intitle", "filetype"},
+    "bing_news": _X_OPS | {"before", "after", "*", "filetype", "inurl", "intitle", "intext"},
+    "bluesky": _GOOGLE_OPS | _X_OPS | {"*"},
+    "threads": _GOOGLE_OPS | _X_OPS | {"*"},
+    "reddit": _GOOGLE_OPS | _X_OPS | {"*"},
 }
 
 

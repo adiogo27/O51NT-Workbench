@@ -87,6 +87,14 @@ def test_frase_exata_com_curinga_e_negacao() -> None:
     assert casa("PRF -concurso", N1) == ["PRF"] and casa("PRF -concurso", N2) == []
 
 
+def test_termo_solto_com_curinga_de_prefixo() -> None:
+    """'manifesta*' casa manifestação, manifestantes e manifestaram (sem acento/caixa); não vaza para outras palavras."""
+    atos = [radar.alvo_de(t, "", "https://ex.org/a", None) for t in ("Manifestantes bloqueiam a BR-116", "Manifestação em Belo Horizonte", "MANIFESTACAO sem acento", "Caminhoneiros se manifestaram")]
+    assert all(casa("manifesta*", a) == ["manifesta*"] for a in atos)
+    assert casa("manifesta*", N2) == [] and casa("manifesta* OR concurso", N2) == ["concurso"]
+    assert casa("manifesta* -pacifica", radar.alvo_de("Manifestação pacífica", "", "https://ex.org/b", None)) == []
+
+
 def test_hashtag_e_mencao_com_ou_sem_simbolo() -> None:
     a = radar.alvo_de("Mobilização", "veja #EleNão hoje e @PRFBrasil", "https://ex.org/h", None)
     assert casa("#elenao", a) == ["#elenao"] and casa("@prfbrasil", a) == ["@prfbrasil"]

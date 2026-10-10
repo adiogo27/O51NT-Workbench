@@ -29,7 +29,9 @@ def test_compose_com_bloco_x(client: TestClient) -> None:
     # contrato original intacto
     assert set(r["deeplinks"]) == {"google", "bing", "duckduckgo", "startpage"}
     # campos adicionais
-    assert set(r["deeplinks_extra"]) == {"x", "tiktok", "youtube", "google_news"}
+    assert {"x", "tiktok", "youtube", "google_news"} <= set(r["deeplinks_extra"])  # os 4 originais + buscadores/redes de 2026-10-10
+    assert {"brave", "yandex", "mojeek", "bing_news", "bluesky", "threads", "reddit"} <= set(r["deeplinks_extra"])
+    assert parse_qs(urlsplit(r["deeplinks_extra"]["brave"]).query)["q"] == [r["query"]]
     x = urlsplit(r["deeplinks_extra"]["x"])
     assert x.netloc == "x.com" and parse_qs(x.query)["q"] == [r["query"]] and parse_qs(x.query)["f"] == ["live"]
     assert "since" in r["compatibilidade"]["google"]  # Google ignora operadores do X

@@ -189,6 +189,45 @@ CATALOGO_FONTES: list[dict] = [
         "tipo": "modelo",
         "descricao": "Troque {hashtag} pela hashtag sem '#' (ex.: brasil2026) e, se quiser, a instância.",
     },
+    # Modelos por busca/canal (2026-10-10). O robots.txt desses hosts não libera a coleta automática; a decisão de usar
+    # a opção "ignorar robots.txt" é do analista, fonte a fonte (nunca há burla de CAPTCHA, login ou bloqueio).
+    {
+        "nome": "Google Notícias — busca (RSS por termo)",
+        "url": "https://news.google.com/rss/search?q={termos}&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+        "categoria": "busca",
+        "tipo": "modelo",
+        "descricao": "Troque {termos} pela busca (ex.: manifesta%C3%A7%C3%A3o%20OR%20manifestantes). Feed de resultados do Google Notícias; "
+        "marque 'ignorar robots.txt' nesta fonte.",
+    },
+    {
+        "nome": "Bing Notícias — busca (RSS por termo)",
+        "url": "https://www.bing.com/news/search?q={termos}&format=rss&setlang=pt-BR&cc=BR",
+        "categoria": "busca",
+        "tipo": "modelo",
+        "descricao": "Troque {termos} pela busca. Feed de resultados do Bing Notícias; marque 'ignorar robots.txt' nesta fonte.",
+    },
+    {
+        "nome": "YouTube — canal (feed de vídeos)",
+        "url": "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}",
+        "categoria": "rede",
+        "tipo": "modelo",
+        "descricao": "Troque {channel_id} pelo ID do canal (começa com UC…; está em 'Compartilhar canal' ou no código da página). "
+        "Marque 'ignorar robots.txt' nesta fonte.",
+    },
+    {
+        "nome": "Telegram — canal público (página t.me/s)",
+        "url": "https://t.me/s/{canal}",
+        "categoria": "rede",
+        "tipo": "modelo",
+        "descricao": "Troque {canal} pelo nome público do canal. Cadastre como tipo 'pagina': o Radar extrai as mensagens novas da prévia pública, sem login.",
+    },
+    {
+        "nome": "Reddit — subreddit (novos)",
+        "url": "https://www.reddit.com/r/{subreddit}/new/.rss",
+        "categoria": "rede",
+        "tipo": "modelo",
+        "descricao": "Troque {subreddit} pelo nome da comunidade (ex.: brasil).",
+    },
 ]
 
 

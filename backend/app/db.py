@@ -88,6 +88,8 @@ def _migrar(engine: Engine) -> None:
         # Páginas HTML no Radar + assistente de IA
         _add_colunas(conn, "fonte", {"tipo": "VARCHAR NOT NULL DEFAULT 'feed'", "intervalo_min": "INTEGER", "conteudo_hash": "VARCHAR NOT NULL DEFAULT ''", "ultima_mudanca": "DATETIME"})
         _add_colunas(conn, "monitor", {"ia": "BOOLEAN NOT NULL DEFAULT 1"})
+        # Camada de verificação OOVS (2026-10-10)
+        _add_colunas(conn, "ia_tarefa", {"aterramento_json": "VARCHAR NOT NULL DEFAULT '{}'", "verificacao_json": "VARCHAR NOT NULL DEFAULT '{}'"})
 
 
 def _add_colunas(conn, tabela: str, colunas: dict[str, str]) -> None:  # noqa: ANN001

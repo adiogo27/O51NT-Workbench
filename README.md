@@ -142,6 +142,10 @@ ssh o51nt@<vps>
 cd /opt/o51nt/app && git pull && bash deploy/vps/03_o51nt.sh
 ```
 
+**Deploy automático**: o job `deploy` do CI roda esse mesmo `git pull` + `03_o51nt.sh` por SSH a cada merge na `main` com
+a suíte verde. Para ativar: na VM, `sudo bash deploy/vps/chave_deploy.sh` (gera uma chave restrita a esse comando) e grave
+os segredos `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` em Settings → Secrets → Actions. Sem eles, o job é pulado.
+
 Segredos (Telegram, SMTP, Anthropic/OpenAI, token do gateway) só na VM, gravados por `segredos.sh`. Relatório completo,
 armadilhas e operação em `deploy/vps/RELATORIO_IMPLANTACAO.md`; contexto operacional e progresso em `CLAUDE.md`.
 
@@ -265,8 +269,11 @@ ser um crawler furtivo. Os itens abaixo são fronteiras deliberadas do produto, 
 - **Google Notícias:** o `robots.txt` não libera `/rss/`, então não há coleta automática; a seção "Notícias relevantes"
   do Boletim é assistida (deeplink + registro manual com evidência).
 - **Operadores do X/TweetDeck** só funcionam no X. O Query Builder os valida e avisa.
-- **Contratos congelados:** endpoints e campos existentes não mudam; toda evolução é aditiva (ex.: `/api/alertas/contagem`
-  não ganhou chave nova com a IA).
+- **Contratos:** endpoints e campos existentes não mudam por padrão; toda evolução é aditiva (ex.: `/api/alertas/contagem`
+  não ganhou chave nova com a IA). `robots.txt` e o ritmo de 1 req/3 s são o padrão, mas o analista pode desligar o
+  robots.txt fonte a fonte (feeds de busca, YouTube). Nunca: CAPTCHA, login automatizado, rotação de UA/proxies.
+- **Verificação (OOVS 0.1.0):** cada item RELEVANTE recebe uma etiqueta de confiança derivada mecanicamente de origens
+  distintas (republicações contam uma vez), da verificação do pesquisador e do aterramento das afirmações do cartão.
 
 ## Avisos legais
 

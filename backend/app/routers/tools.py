@@ -178,10 +178,72 @@ CATALOGO: list[Ferramenta] = [
         deeplink="https://www.facebook.com/search/top/?q={q}", tipo_parametro="texto",
     ),
     Ferramenta(
+        id="bluesky_search", nome="Busca no Bluesky", url="https://bsky.app/search",
+        categoria="Busca em redes", tags=["bluesky", "posts"], descricao="Busca pública de posts no Bluesky (sem login).",
+        deeplink="https://bsky.app/search?q={q}", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="threads_search", nome="Busca no Threads", url="https://www.threads.net/search",
+        categoria="Busca em redes", tags=["threads", "instagram"], descricao="Busca do Threads (Meta); pode pedir sessão no navegador do analista.",
+        deeplink="https://www.threads.net/search?q={q}&serp_type=default", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="reddit_search", nome="Busca no Reddit", url="https://www.reddit.com/search/",
+        categoria="Busca em redes", tags=["reddit", "fóruns"], descricao="Busca no Reddit ordenada por mais novos (r/brasil, r/desabafos…).",
+        deeplink="https://www.reddit.com/search/?q={q}&sort=new", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="lyzem", nome="Lyzem (busca em canais do Telegram)", url="https://lyzem.com/",
+        categoria="Busca em redes", tags=["telegram", "canais"], descricao="Buscador de mensagens em canais públicos do Telegram.",
+        deeplink="https://lyzem.com/search?q={q}", tipo_parametro="texto",
+    ),
+    Ferramenta(
         id="google_news", nome="Google Notícias", url="https://news.google.com/?hl=pt-BR&gl=BR&ceid=BR:pt-419",
         categoria="Busca em redes", tags=["notícias", "imprensa"],
         descricao="Busca de notícias (seção 'Notícias relevantes' do boletim). Coleta automática não é permitida pelo robots.txt; use o deeplink.",
         deeplink="https://news.google.com/search?q={q}&hl=pt-BR&gl=BR&ceid=BR%3Apt-419", tipo_parametro="texto",
+    ),
+    # ------------------------------------------------------------------ Buscadores (2026-10-10)
+    Ferramenta(
+        id="brave_search", nome="Brave Search", url="https://search.brave.com/",
+        categoria="Buscadores", tags=["busca", "independente"], descricao="Índice próprio; honra aspas, -negação e site:.",
+        deeplink="https://search.brave.com/search?q={q}&source=web", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="yandex_search", nome="Yandex", url="https://yandex.com/",
+        categoria="Buscadores", tags=["busca"], descricao="Índice próprio, útil como segunda opinião sobre o Google/Bing.",
+        deeplink="https://yandex.com/search/?text={q}", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="mojeek", nome="Mojeek", url="https://www.mojeek.com/",
+        categoria="Buscadores", tags=["busca", "independente"], descricao="Buscador com índice próprio, sem rastreamento.",
+        deeplink="https://www.mojeek.com/search?q={q}", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="bing_news", nome="Bing Notícias", url="https://www.bing.com/news",
+        categoria="Buscadores", tags=["notícias", "imprensa"], descricao="Busca de notícias do Bing (também disponível como feed RSS em Fontes do radar).",
+        deeplink="https://www.bing.com/news/search?q={q}&setlang=pt-BR&cc=BR", tipo_parametro="texto",
+    ),
+    # ------------------------------------------------------------------ Arquivo e registros
+    Ferramenta(
+        id="wayback", nome="Wayback Machine", url="https://web.archive.org/",
+        categoria="Arquivo e registros", tags=["arquivo", "evidência"], descricao="Versões arquivadas de uma URL (informe a URL completa). Útil para preservar e comparar páginas apagadas.",
+        deeplink="https://web.archive.org/web/*/{q}", tipo_parametro="texto",
+    ),
+    Ferramenta(
+        id="archive_today", nome="archive.today", url="https://archive.ph/",
+        categoria="Arquivo e registros", tags=["arquivo", "evidência"], descricao="Cópias arquivadas de uma URL (informe a URL completa).",
+        deeplink="https://archive.ph/{q}", tipo_parametro="texto",
+    ),
+    # ------------------------------------------------------------------ Dados oficiais
+    Ferramenta(
+        id="divulgacand", nome="DivulgaCandContas (TSE)", url="https://divulgacandcontas.tse.jus.br/divulga/",
+        categoria="Dados oficiais", tags=["tse", "candidatos", "oficial"], descricao="Candidaturas, bens e contas de campanha registrados no TSE.",
+    ),
+    Ferramenta(
+        id="portal_transparencia", nome="Portal da Transparência", url="https://portaldatransparencia.gov.br/",
+        categoria="Dados oficiais", tags=["gov.br", "oficial"], descricao="Busca geral do Portal da Transparência (pessoas, órgãos, convênios, sanções).",
+        deeplink="https://portaldatransparencia.gov.br/busca?termo={q}", tipo_parametro="texto",
     ),
 ]
 

@@ -31,18 +31,19 @@ from app.models.monitor import Monitor
 from app.models.radar import MonitorHit
 from app.models.settings import Preferencias
 from app.services import alerts
-from app.services.ia import prompts
+from app.services.ia import prompts, verificacao
 from app.services.ia.cliente_openclaw import ClienteOpenClaw, OpenClawErro, OpenClawIndisponivel, RespostaInvalida, extrair_json, get_cliente
-from app.services.ia.esquemas import ORDEM_SEVERIDADE, CartaoOut, EventoOut, PesquisaOut, TriagemOut
+from app.services.ia.esquemas import ORDEM_SEVERIDADE, AterramentoOut, CartaoOut, EventoOut, PesquisaOut, TriagemOut
 
 logger = logging.getLogger("o51nt.ia")
 ULTIMO_CICLO: dict[str, Any] | None = None
 MAX_TENTATIVAS = 3
-CAMPO_JSON = {"triagem": "triagem_json", "extracao": "evento_json", "pesquisa": "pesquisa_json", "cartao": "cartao_json"}
+CAMPO_JSON = {"triagem": "triagem_json", "extracao": "evento_json", "pesquisa": "pesquisa_json", "cartao": "cartao_json", "aterramento": "aterramento_json"}
 # agent do OpenClaw por etapa: sentinela/extrator/redator são enxutos (sem ferramentas, sem raciocínio longo);
 # o `analista` fica para a conversa no Telegram
-AGENTS = {"triagem": "sentinela", "extracao": "extrator", "pesquisa": "pesquisador", "cartao": "redator"}
+AGENTS = {"triagem": "sentinela", "extracao": "extrator", "pesquisa": "pesquisador", "cartao": "redator", "aterramento": "sentinela"}
 MODELO_PADRAO_REF = "anthropic/claude-sonnet-5-5"  # referência de custo quando a preferência iaModeloPadrao está vazia
+MODELO_LEVE_REF = "anthropic/claude-haiku-5-5"  # extração/cartão quando iaModeloLeve está vazia
 _PARAMS_RASTREIO = re.compile(r"^(utm_|fbclid$|gclid$|igshid$|mc_cid$|mc_eid$|ref$|ref_src$)", re.I)
 _TZ = ZoneInfo("America/Sao_Paulo")
 TIPO_EVENTO = {"ato": "ato", "manifestacao": "ato", "manifestação": "ato", "protesto": "ato", "carreata": "carreata", "motociata": "motociata", "caminhada": "caminhada", "comicio": "comicio", "comício": "comicio", "bloqueio": "outro", "greve": "outro", "debate": "debate", "entrevista": "entrevista", "reuniao": "reuniao", "reunião": "reuniao"}
@@ -291,6 +292,20 @@ async def _etapa(session: Session, t: IaTarefa, cliente: ClienteOpenClaw, etapa:
     raise RespostaInvalida(f"{agent}: {erro}")
 
 
+async def _verificar(session: Session, t: IaTarefa, cliente: ClienteOpenClaw, triagem: TriagemOut, pesquisa: PesquisaOut | None, cartao: CartaoOut | None, prefs: Preferencias, ref_padrao: str) -> dict[str, Any]:
+    """Camada OOVS: aterramento (só RELEVANTE com pesquisa e fontes) + origens distintas + etiqueta; grava em verificacao_json."""
+    pq_d = pesquisa.model_dump(mode="json") if pesquisa else None
+    ca_d = cartao.model_dump(mode="json") if cartao else None
+    aterr: AterramentoOut | None = None
+    if triagem.veredito == "RELEVANTE" and pesquisa is not None and cartao is not None and prefs.iaAterramento and pesquisa.fontes:
+        aterr = await _etapa(session, t, cliente, "aterramento", AGENTS["aterramento"], prompts.prompt_aterramento(ca_d or {}, pq_d or {}), AterramentoOut, modelo=prefs.iaModeloTriagem or None, max_tokens=900, modelo_ref=prefs.iaModeloTriagem or ref_padrao)  # type: ignore[assignment]
+    v = verificacao.resumo_verificacao(t.url, pq_d, ca_d, aterr.resumo() if aterr else None)
+    t.verificacao_json = _json(v)
+    session.add(t)
+    session.commit()
+    return v
+
+
 def _pesquisar(prefs: Preferencias, severidade: str) -> bool:
     if prefs.iaPesquisarSeveridadeMin == "nunca":
         return False
@@ -306,6 +321,8 @@ async def executar_tarefa(session: Session, t: IaTarefa, cliente: ClienteOpenCla
     try:
         ctx = await _contexto(session, t, scraper, prefs)
         ref_padrao = prefs.iaModeloPadrao or MODELO_PADRAO_REF
+        leve = prefs.iaModeloLeve or prefs.iaModeloPadrao or None
+        ref_leve = leve or MODELO_LEVE_REF
         triagem = await _etapa(session, t, cliente, "triagem", AGENTS["triagem"], prompts.prompt_triagem(ctx), TriagemOut, modelo=prefs.iaModeloTriagem or None, max_tokens=900, modelo_ref=prefs.iaModeloTriagem or ref_padrao)
         assert isinstance(triagem, TriagemOut)
         t.veredito, t.severidade, t.justificativa, t.secao_sugerida, t.eh_evento = triagem.veredito, triagem.severidade, triagem.justificativa, triagem.secao, triagem.eh_evento
@@ -315,12 +332,13 @@ async def executar_tarefa(session: Session, t: IaTarefa, cliente: ClienteOpenCla
         if triagem.veredito != "DESCARTAR":
             tri = triagem.model_dump(mode="json")
             if triagem.eh_evento:
-                evento = await _etapa(session, t, cliente, "extracao", AGENTS["extracao"], prompts.prompt_extracao(ctx, tri), EventoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1200, modelo_ref=ref_padrao)  # type: ignore[assignment]
+                evento = await _etapa(session, t, cliente, "extracao", AGENTS["extracao"], prompts.prompt_extracao(ctx, tri), EventoOut, modelo=leve, max_tokens=1200, modelo_ref=ref_leve)  # type: ignore[assignment]
             ev_d = evento.model_dump(mode="json") if evento else None
             if triagem.veredito == "RELEVANTE" and _pesquisar(prefs, triagem.severidade):
                 pesquisa = await _etapa(session, t, cliente, "pesquisa", AGENTS["pesquisa"], prompts.prompt_pesquisa(ctx, tri, ev_d), PesquisaOut, modelo=prefs.iaModeloPadrao or None, max_tokens=3000, timeout=max(cliente.timeout, 420.0), modelo_ref=ref_padrao)  # type: ignore[assignment]
             pq_d = pesquisa.model_dump(mode="json") if pesquisa else None
-            cartao = await _etapa(session, t, cliente, "cartao", AGENTS["cartao"], prompts.prompt_cartao(ctx, tri, ev_d, pq_d), CartaoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1200, modelo_ref=ref_padrao)  # type: ignore[assignment]
+            cartao = await _etapa(session, t, cliente, "cartao", AGENTS["cartao"], prompts.prompt_cartao(ctx, tri, ev_d, pq_d), CartaoOut, modelo=leve, max_tokens=1200, modelo_ref=ref_leve)  # type: ignore[assignment]
+            await _verificar(session, t, cliente, triagem, pesquisa, cartao, prefs, ref_padrao)
         t.etapa = "saidas"
         await aplicar_saidas(session, t, triagem, evento, pesquisa, cartao, prefs)
         t.status, t.etapa, t.erro, t.concluido_em = "concluida", "fim", "", agora()
@@ -404,6 +422,9 @@ def formatar_cartao_telegram(t: IaTarefa, triagem: TriagemOut, cartao: CartaoOut
         linhas.append(f"➡️ {_esc(cartao.acao)}")
     if pesquisa and pesquisa.verificacao:
         linhas.append(f"🔎 verificação: {_esc(pesquisa.verificacao)} (confiança {pesquisa.confianca:.0%})")
+    rotulo = verificacao.texto_etiqueta(_carregar(t, "verificacao_json"))
+    if rotulo:
+        linhas.append(f"🧾 {_esc(rotulo)}")
     if t.monitor_nome:
         linhas.append(f"<i>monitor: {_esc(t.monitor_nome)} · casou: {_esc(t.termos or '—')}</i>")
     if t.url.startswith(("http://", "https://")):
@@ -433,6 +454,9 @@ async def aplicar_saidas(session: Session, t: IaTarefa, triagem: TriagemOut, eve
     partes = [triagem.justificativa]
     if cartao:
         partes += [cartao.resumo, f"Impacto: {cartao.impacto_rodovia}" if cartao.impacto_rodovia else "", f"Ação: {cartao.acao}" if cartao.acao else ""]
+    rotulo = verificacao.texto_etiqueta(_carregar(t, "verificacao_json"))
+    if rotulo:
+        partes.append(f"Verificação ({verificacao.NORMA}): {rotulo}")
     severidade = triagem.severidade if triagem.veredito == "RELEVANTE" else ("baixa" if ORDEM_SEVERIDADE.get(triagem.severidade, 0) <= 1 else "media")
     if t.alerta_id is None:
         alerta = Alerta(tipo="ia", severidade=severidade, titulo=f"[{triagem.veredito}] {titulo}", resumo="\n".join(p for p in partes if p)[:1000], url=t.url if t.url.startswith(("http://", "https://")) else "", monitor_id=t.monitor_id, deteccao_id=t.deteccao_id)
@@ -647,11 +671,12 @@ def rejeitar(session: Session, t: IaTarefa, por: str = "painel", motivo: str = "
 
 
 def reprocessar(session: Session, t: IaTarefa, desde: str = "triagem") -> IaTarefa:
-    ordem = ["triagem", "extracao", "pesquisa", "cartao"]
+    ordem = ["triagem", "extracao", "pesquisa", "cartao", "aterramento"]
     if desde not in ordem:
         raise ErroPipeline(422, f"desde deve ser um de {', '.join(ordem)}")
     for etapa in ordem[ordem.index(desde) :]:
         setattr(t, CAMPO_JSON[etapa], "{}")
+    t.verificacao_json = "{}"
     if desde == "triagem":
         t.veredito = t.severidade = t.secao_sugerida = None
         t.justificativa, t.eh_evento = "", False
@@ -677,18 +702,22 @@ async def pesquisar_sob_pedido(session: Session, t: IaTarefa, cliente: ClienteOp
     ev = _carregar(t, "evento_json") or None
     t.pesquisa_json = "{}"
     t.cartao_json = "{}"
+    t.aterramento_json = "{}"
     ref_padrao = prefs.iaModeloPadrao or MODELO_PADRAO_REF
+    leve = prefs.iaModeloLeve or prefs.iaModeloPadrao or None
     pesquisa = await _etapa(session, t, cliente, "pesquisa", AGENTS["pesquisa"], prompts.prompt_pesquisa(ctx, tri, ev), PesquisaOut, modelo=prefs.iaModeloPadrao or None, max_tokens=3000, timeout=max(cliente.timeout, 420.0), modelo_ref=ref_padrao)
-    cartao = await _etapa(session, t, cliente, "cartao", AGENTS["cartao"], prompts.prompt_cartao(ctx, tri, ev, pesquisa.model_dump(mode="json")), CartaoOut, modelo=prefs.iaModeloPadrao or None, max_tokens=1200, modelo_ref=ref_padrao)
+    cartao = await _etapa(session, t, cliente, "cartao", AGENTS["cartao"], prompts.prompt_cartao(ctx, tri, ev, pesquisa.model_dump(mode="json")), CartaoOut, modelo=leve, max_tokens=1200, modelo_ref=leve or MODELO_LEVE_REF)
+    v = await _verificar(session, t, cliente, TriagemOut.model_validate(tri), pesquisa, cartao, prefs, ref_padrao)  # type: ignore[arg-type]
     if t.alerta_id:
         alerta = session.get(Alerta, t.alerta_id)
         if alerta is not None and isinstance(cartao, CartaoOut):
-            alerta.resumo = "\n".join(p for p in (t.justificativa, cartao.resumo, cartao.impacto_rodovia and f"Impacto: {cartao.impacto_rodovia}", cartao.acao and f"Ação: {cartao.acao}") if p)[:1000]
+            rotulo = verificacao.texto_etiqueta(v)
+            alerta.resumo = "\n".join(p for p in (t.justificativa, cartao.resumo, cartao.impacto_rodovia and f"Impacto: {cartao.impacto_rodovia}", cartao.acao and f"Ação: {cartao.acao}", rotulo and f"Verificação ({verificacao.NORMA}): {rotulo}") if p)[:1000]
             session.add(alerta)
     t.status, t.etapa = "concluida", "fim"
     session.add(t)
     session.commit()
-    return {"pesquisa": pesquisa.model_dump(mode="json"), "cartao": cartao.model_dump(mode="json")}
+    return {"pesquisa": pesquisa.model_dump(mode="json"), "cartao": cartao.model_dump(mode="json"), "verificacao": v}
 
 
 # ------------------------------------------------------------------ status

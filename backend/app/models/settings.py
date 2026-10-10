@@ -52,9 +52,10 @@ class Preferencias(BaseModel):
     iaAtivo: bool = False
     iaIntervaloMin: int = Field(default=5, ge=1, le=1440)
     iaMaxItensCiclo: int = Field(default=25, ge=1, le=500)
-    iaCustoDiarioUsd: float = Field(default=3.0, ge=0, le=1000)
+    iaCustoDiarioUsd: float = Field(default=1.0, ge=0, le=1000)  # decisão do dono (2026-10-10): US$ 1/dia
     iaModeloTriagem: str = Field(default="anthropic/claude-haiku-5-5", max_length=120)  # barato: 1 chamada por item
-    iaModeloPadrao: str | None = Field(default=None, max_length=120)  # None = modelo configurado no OpenClaw
+    iaModeloPadrao: str | None = Field(default=None, max_length=120)  # None = modelo configurado no OpenClaw (pesquisador)
+    iaModeloLeve: str | None = Field(default="anthropic/claude-haiku-5-5", max_length=120)  # extração e cartão: JSON curto, 20× mais barato que o Sonnet
     iaPesquisarSeveridadeMin: Literal["baixa", "media", "alta", "critica", "nunca"] = "alta"  # pesquisador automático
     iaBoletim: Literal["auto", "aprovar", "nunca"] = "aprovar"
     iaAgenda: Literal["auto", "aprovar", "nunca"] = "aprovar"
@@ -63,6 +64,7 @@ class Preferencias(BaseModel):
     iaSuprimirAlertasBrutos: bool = True  # com IA ativa, o alerta "N novos resultados" do Radar não é emitido
     iaMarcarLidos: bool = True  # hits DESCARTAR pela IA ficam marcados como lidos
     iaTextoMaxChars: int = Field(default=6000, ge=500, le=30000)
+    iaAterramento: bool = True  # OOVS: confere as afirmações do cartão contra os trechos citados (1 chamada barata, só RELEVANTE com pesquisa)
     ferramentasSensiveisAtivas: bool = False  # holehe / h8mail / phoneinfoga (dados pessoais — LGPD)
 
     @model_validator(mode="after")

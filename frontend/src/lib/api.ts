@@ -367,6 +367,7 @@ export interface Preferencias {
   iaCustoDiarioUsd: number;
   iaModeloTriagem: string;
   iaModeloPadrao: string | null;
+  iaModeloLeve: string | null;
   iaPesquisarSeveridadeMin: "baixa" | "media" | "alta" | "critica" | "nunca";
   iaBoletim: "auto" | "aprovar" | "nunca";
   iaAgenda: "auto" | "aprovar" | "nunca";
@@ -375,11 +376,13 @@ export interface Preferencias {
   iaSuprimirAlertasBrutos: boolean;
   iaMarcarLidos: boolean;
   iaTextoMaxChars: number;
+  iaAterramento: boolean;
   ferramentasSensiveisAtivas: boolean;
 }
 
 // ------------------------------------------------------------------ Assistente de IA
 export type Veredito = "RELEVANTE" | "OBSERVAR" | "DESCARTAR";
+export type EtiquetaConfianca = "alta" | "media" | "baixa" | "nao_verificada" | "refutada";
 
 export interface IaTarefa {
   id: number;
@@ -408,6 +411,10 @@ export interface IaTarefa {
   evento: { tipo?: string | null; titulo?: string | null; data?: string | null; hora?: string | null; cidade?: string | null; uf?: string | null; local?: string | null; rodovias?: string[]; organizador?: string | null; pauta?: string | null; confianca?: number };
   pesquisa: { resposta?: string; verificacao?: string | null; fontes?: { url: string; titulo?: string; trecho?: string }[]; confianca?: number; lacunas?: string };
   cartao: { titulo?: string; resumo?: string; impacto_rodovia?: string; acao?: string; fontes?: string[] };
+  /** Checagem de aterramento (OOVS): afirmações do cartão × trechos citados. Vazio quando a etapa não rodou. */
+  aterramento?: { sustentadas?: number; parciais?: number; total?: number; afirmacoes?: { texto: string; sustentada: "sim" | "parcial" | "nao"; fonte?: number | null }[]; observacao?: string };
+  /** Camada OOVS: origens distintas, corroborações e etiqueta de confiança derivada mecanicamente. */
+  verificacao?: { norma?: string; etiqueta?: EtiquetaConfianca; origens_distintas?: number; corroboracoes?: number; duplicadas?: number; verificacao?: string | null; aterramento?: { sustentadas: number; total: number } | null; motivos?: string[] };
   aprovacao: "nao_se_aplica" | "pendente" | "aprovada" | "rejeitada";
   aprovado_por: string;
   aprovado_em: string | null;
