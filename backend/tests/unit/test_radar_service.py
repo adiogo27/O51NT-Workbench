@@ -215,3 +215,16 @@ async def test_casar_monitor_cache_novo_monitor(data_dir: Path) -> None:
         assert radar.casar_monitor_cache(s, mon) == []  # idempotente
         assert radar.contagens_hits(s) == {mon.id: (1, 1)}
     await scraper.stop()
+
+
+def test_parse_feed_tolerante_a_entidades_e_lixo() -> None:
+    """Feeds reais (Senado, Câmara, Gazeta do Povo…) trazem &nbsp; e lixo após a raiz: o parser tolerante salva o que dá."""
+    sujo = (
+        '<?xml version="1.0"?><rss version="2.0"><channel><title>Agência&nbsp;X</title>'
+        "<item><title>Senado aprova&nbsp;projeto</title><link>https://ex.org/s1</link><description>texto &copy; 2026</description></item>"
+        "<item><title>Ok</title><link>https://ex.org/s2</link></item></channel></rss>\n<!-- lixo depois da raiz -->"
+    )
+    itens = radar.parse_feed(sujo)
+    assert [i.url for i in itens] == ["https://ex.org/s1", "https://ex.org/s2"] and itens[0].titulo.startswith("Senado aprova")
+    with pytest.raises(ValueError):
+        radar.parse_feed("isto não é xml de jeito nenhum")

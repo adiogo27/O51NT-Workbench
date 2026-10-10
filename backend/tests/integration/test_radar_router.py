@@ -10,14 +10,16 @@ pytestmark = pytest.mark.integration
 
 def test_fontes_seedadas_e_catalogo(client: TestClient) -> None:
     fontes = client.get("/api/radar/fontes").json()
-    from app.seed import FONTES_PADRAO
+    from app.seed import FONTES_PADRAO, FONTES_PADRAO_SEM_ROBOTS
 
     assert len(fontes) == len(FONTES_PADRAO) >= 11 and all(f["ativa"] for f in fontes)
+    por_url = {f["url"]: f for f in fontes}
+    assert all(por_url[u]["respeitar_robots"] is False for u in FONTES_PADRAO_SEM_ROBOTS) and por_url["https://g1.globo.com/rss/g1/politica/"]["respeitar_robots"] is True
     assert {"g1 — política", "Agência Brasil — política", "Mastodon — #eleicoes2026 (mastodon.social)"} <= {f["nome"] for f in fontes}
     cat = client.get("/api/radar/fontes/catalogo").json()
     assert all(c["cadastrada"] for c in cat if c["tipo"] == "feed")
     modelos = [c for c in cat if c["tipo"] == "modelo"]
-    assert {"Google Alertas (feed pessoal)", "Mastodon — hashtag (qualquer instância)", "Google Notícias — busca (RSS por termo)", "YouTube — canal (feed de vídeos)", "Telegram — canal público (página t.me/s)"} <= {m["nome"] for m in modelos}
+    assert {"Google Alertas (feed pessoal)", "Mastodon — hashtag (qualquer instância)", "Google Notícias — busca (RSS por termo)", "YouTube — canal (feed de vídeos)", "Reddit — subreddit (novos)"} <= {m["nome"] for m in modelos}
     assert all(not m["cadastrada"] for m in modelos)
 
 

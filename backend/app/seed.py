@@ -168,7 +168,49 @@ FONTES_PADRAO: list[tuple[str, str, str, bool]] = [
     ("CNN Brasil", "https://www.cnnbrasil.com.br/feed/", "imprensa", True),
     ("Estadão — política", "https://www.estadao.com.br/arc/outboundfeeds/feeds/rss/sections/politica/?outputType=xml", "imprensa", True),
     ("Mastodon — #eleicoes2026 (mastodon.social)", "https://mastodon.social/tags/eleicoes2026.rss", "rede", True),
+    # --- validadas ao vivo em 2026-10-10 (backend/scripts/validar_fontes.py no GitHub Actions; itens recentes, robots OK) ---
+    ("Google Notícias — busca: manifestação/protesto/bloqueio/carreata", "https://news.google.com/rss/search?q=manifesta%C3%A7%C3%A3o%20OR%20manifestantes%20OR%20protesto%20OR%20bloqueio%20OR%20carreata&hl=pt-BR&gl=BR&ceid=BR:pt-419", "busca", True),
+    ("Agência Lupa", "https://lupa.uol.com.br/feed", "checagem", True),
+    ("Aos Fatos", "https://www.aosfatos.org/noticias/feed/", "checagem", True),
+    ("TSE — notícias", "https://www.tse.jus.br/comunicacao/noticias/rss", "oficial", True),
+    ("Agência Pública", "https://apublica.org/feed/", "independente", True),
+    ("The Intercept Brasil", "https://www.intercept.com.br/feed/", "independente", True),
+    ("Nexo Jornal", "https://www.nexojornal.com.br/rss.xml", "independente", True),
+    ("CartaCapital", "https://www.cartacapital.com.br/feed/", "independente", True),
+    ("Revista Fórum", "https://revistaforum.com.br/rss", "independente", True),
+    ("Brasil 247", "https://www.brasil247.com/feed", "independente", True),
+    ("Jornal GGN", "https://jornalggn.com.br/feed/", "independente", True),
+    ("Diário do Centro do Mundo", "https://www.diariodocentrodomundo.com.br/feed/", "independente", True),
+    ("Mídia Ninja", "https://midianinja.org/feed/", "independente", True),
+    ("Ponte Jornalismo", "https://ponte.org/feed/", "independente", True),
+    ("piauí", "https://piaui.folha.uol.com.br/feed/", "independente", True),
+    ("JOTA", "https://www.jota.info/feed", "independente", True),
+    ("BBC News Brasil", "https://feeds.bbci.co.uk/portuguese/rss.xml", "internacional", True),
+    ("RFI Brasil", "https://www.rfi.fr/br/rss", "internacional", True),
+    ("Mastodon — #manifestacao (mastodon.social)", "https://mastodon.social/tags/manifestacao.rss", "rede", True),
+    ("A Gazeta (ES)", "https://www.agazeta.com.br/rss", "regional", True),
+    ("A Tarde (BA)", "https://atarde.com.br/rss", "regional", True),
+    ("Agora RN (RN)", "https://agorarn.com.br/feed/", "regional", True),
+    ("Tribuna do Norte (RN)", "https://tribunadonorte.com.br/feed", "regional", True),
+    ("Bem Paraná (PR)", "https://www.bemparana.com.br/feed/", "regional", True),
+    ("Tribuna PR (PR)", "https://www.tribunapr.com.br/feed/", "regional", True),
+    ("Cidade Verde (PI)", "https://cidadeverde.com/rss", "regional", True),
+    ("Conexão Tocantins (TO)", "https://conexaoto.com.br/feed", "regional", True),
+    ("DOL (PA)", "https://dol.com.br/rss", "regional", True),
+    ("Diário do Amapá (AP)", "https://www.diariodoamapa.com.br/feed/", "regional", True),
+    ("Folha de Boa Vista (RR)", "https://folhabv.com.br/feed/", "regional", True),
+    ("Gazeta de Alagoas (AL)", "https://www.gazetaweb.com/rss", "regional", True),
+    ("Imirante (MA)", "https://imirante.com/rss", "regional", True),
+    ("O Imparcial (MA)", "https://oimparcial.com.br/feed/", "regional", True),
+    ("Infonet (SE)", "https://infonet.com.br/feed/", "regional", True),
+    ("Jornal da Paraíba (PB)", "https://www.jornaldaparaiba.com.br/feed", "regional", True),
+    ("Marco Zero Conteúdo (PE)", "https://marcozero.org/feed/", "regional", True),
+    ("ND Mais (SC)", "https://ndmais.com.br/feed/", "regional", True),
+    ("ac24horas (AC)", "https://ac24horas.com/feed/", "regional", True),
 ]
+# Feeds semeados com respeitar_robots=False (decisão do dono, 2026-10-10): o robots.txt do host não libera a coleta
+# automática, mas o feed existe para ser lido por máquina. Tudo o mais respeita o robots.txt.
+FONTES_PADRAO_SEM_ROBOTS: frozenset[str] = frozenset({u for _n, u, c, _a in FONTES_PADRAO if c == "busca"})
 
 # Catálogo exibido na tela (as acima + modelos que dependem de dados do analista).
 CATALOGO_FONTES: list[dict] = [
@@ -200,26 +242,12 @@ CATALOGO_FONTES: list[dict] = [
         "marque 'ignorar robots.txt' nesta fonte.",
     },
     {
-        "nome": "Bing Notícias — busca (RSS por termo)",
-        "url": "https://www.bing.com/news/search?q={termos}&format=rss&setlang=pt-BR&cc=BR",
-        "categoria": "busca",
-        "tipo": "modelo",
-        "descricao": "Troque {termos} pela busca. Feed de resultados do Bing Notícias; marque 'ignorar robots.txt' nesta fonte.",
-    },
-    {
         "nome": "YouTube — canal (feed de vídeos)",
         "url": "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}",
         "categoria": "rede",
         "tipo": "modelo",
         "descricao": "Troque {channel_id} pelo ID do canal (começa com UC…; está em 'Compartilhar canal' ou no código da página). "
         "Marque 'ignorar robots.txt' nesta fonte.",
-    },
-    {
-        "nome": "Telegram — canal público (página t.me/s)",
-        "url": "https://t.me/s/{canal}",
-        "categoria": "rede",
-        "tipo": "modelo",
-        "descricao": "Troque {canal} pelo nome público do canal. Cadastre como tipo 'pagina': o Radar extrai as mensagens novas da prévia pública, sem login.",
     },
     {
         "nome": "Reddit — subreddit (novos)",
@@ -238,7 +266,7 @@ def seed_fontes(session: Session) -> int:
     for nome, url, categoria, ativa in FONTES_PADRAO:
         if url in existentes:
             continue
-        session.add(Fonte(nome=nome, url=url, categoria=categoria, ativa=ativa))
+        session.add(Fonte(nome=nome, url=url, categoria=categoria, ativa=ativa, respeitar_robots=url not in FONTES_PADRAO_SEM_ROBOTS))
         novos += 1
     session.commit()
     if novos:

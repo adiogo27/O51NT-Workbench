@@ -208,9 +208,13 @@ recurso para produzir o boletim "INFORMAÇÕES RELEVANTES". Fonte em `deploy/gui
 ## Radar — como os monitores pesquisam de verdade
 
 Buscadores bloqueiam coleta automática (CAPTCHA/robots.txt), então o Radar usa o que foi feito para máquina ler:
-**feeds**, e, para sites sem feed, **páginas HTML** com detecção de mudança por hash. Onze fontes verificadas vêm
-cadastradas (Agência Brasil, g1, Folha, UOL, Metrópoles, Poder360, CNN Brasil, Estadão e a hashtag `#eleicoes2026` no
-Mastodon); outras entram em **Fontes do radar** (teste a URL antes de gravar: `POST /api/radar/fontes/testar`).
+**feeds**, e, para sites sem feed, **páginas HTML** com detecção de mudança por hash. Cerca de 50 fontes validadas ao
+vivo vêm cadastradas: grande imprensa (g1, Folha, UOL, Metrópoles, Poder360, CNN Brasil, Estadão), Agência Brasil e
+TSE, agências de checagem (Lupa, Aos Fatos), imprensa independente (Agência Pública, Intercept, Nexo, CartaCapital,
+Fórum, Brasil 247, GGN, DCM, Mídia Ninja, Ponte, piauí, JOTA), BBC e RFI em português, regionais de 15 UFs, hashtags no
+Mastodon e um **feed de busca do Google Notícias** (manifestação/protesto/bloqueio/carreata, com robots.txt ignorado
+por decisão do dono). Outras entram em **Fontes do radar** (teste a URL antes de gravar: `POST /api/radar/fontes/testar`);
+candidatas e validação em lote: `backend/scripts/validar_fontes.py` (workflow "Fontes do Radar" no GitHub Actions).
 A cada ciclo (padrão 10 min, ajustável em **Tema**), o Radar:
 
 1. coleta cada fonte ativa pelo scraper ético (robots.txt, 1 req/3 s por domínio, backoff em 403/429);
