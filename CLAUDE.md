@@ -17,14 +17,20 @@ todos os monitores ativos; hits; alertas) · Agenda · Boletim (itens por seçã
 · Ferramentas (hub) · Evidências (SHA-256, manifesto, ZIP) · **Convocações** (detector de cartazes de ato:
 OCR + léxico + QR + pHash, CLIP opcional/PyTorch opt-in) · Alertas (inbox) · Tema/Settings (`data/settings.json`).
 
-### Regras inegociáveis
-- **Scraping ético**: só dados públicos, `robots.txt` sempre (exceção explícita só para feeds pessoais, ex. Google
-  Alertas), 1 req/3 s por domínio, UA `O51NT-Workbench/1.0 (+local; contato: usuario local)`, backoff 1h→6h→24h em
-  403/429. **Nunca** rotação de User-Agent, proxies, burla de CAPTCHA ou login automatizado.
-- **Contratos congelados**: endpoints/campos existentes não mudam; tudo é aditivo. Se um teste antigo quebrar por
-  mudança de contrato, reverter a mudança, não o teste.
+### Regras (revisadas pelo dono em 2026-10-10)
+- **Coleta**: só dados públicos, sem login. `robots.txt` e o ritmo de 1 req/3 s por domínio continuam sendo o padrão,
+  mas **deixaram de ser obrigatórios**: o analista pode marcar "ignorar robots.txt" fonte a fonte (feeds de busca do
+  Google Notícias/Bing, canais do YouTube, feeds pessoais) e o ritmo pode ser ajustado quando a finalidade pedir. O
+  backoff 1h→6h→24h em 403/429 fica (protege o Radar de bloqueios). UA `O51NT-Workbench/1.0 (+local; contato: usuario local)`.
+  **Nunca, em nenhum caso**: burla de CAPTCHA, login automatizado em contas de terceiros, rotação de User-Agent ou
+  proxies para escapar de bloqueio.
+- **Contratos**: endpoints e campos existentes não mudam por padrão; evolução aditiva. Uma mudança de contrato só com
+  decisão explícita do dono, testes atualizados no mesmo commit e nota no CLAUDE.md. Testes que codificam dados (preços,
+  contagem de fontes semeadas, catálogos) podem ser atualizados junto com os dados.
 - **Testes sempre verdes** antes de qualquer commit/implantação: `./test.sh` (pytest paralelo + sequencial, Vitest,
-  tsc, Playwright). Nunca remover testes para passar.
+  tsc, Playwright) e o CI (`.github/workflows/ci.yml`). Nunca remover ou pular um teste para passar. Vitest (funções
+  puras, sem navegador) e Playwright (fluxos inteiros no navegador com backend isolado) são complementares; um não
+  substitui o outro.
 - **LGPD**: guardar o mínimo; não semear dados pessoais (CPF, telefone, nomes de administradores de grupos).
 - Sem chaves pagas no core; integrações com IA/API ficam **opt-in** e as chaves só em `.env` (nunca no repo).
 
@@ -34,6 +40,24 @@ OCR + léxico + QR + pHash, CLIP opcional/PyTorch opt-in) · Alertas (inbox) · 
 Ambiente: Python 3.12+ (`.venv`), Node 22+, Docker opcional (SearXNG em `127.0.0.1:8080`).
 
 ### Decisões já tomadas (não reabrir)
+- **Teto diário do assistente = US$ 1** (padrão `iaCustoDiarioUsd=1.0`; na VPS o valor vale é o de `data/settings.json`,
+  ajustado em Tema). Tabela de preços em `cliente_openclaw.PRECOS_ESTIMADOS` (lista Anthropic 2026-10: Haiku 5.5
+  0,10/0,50; Sonnet 5.5 2/10; Opus 5.5 4/20 por 1M tokens).
+- **Modelos por etapa**: triagem e aterramento no Haiku 5.5 (`iaModeloTriagem`); extração e cartão no Haiku 5.5
+  (`iaModeloLeve`, agents `extrator`/`redator` com `MODELO_LEVE` em `05_openclaw.sh`); pesquisador no Sonnet 5.5
+  (único com ferramentas). Trocar o pesquisador para Haiku não foi feito: é a etapa com web_fetch/web_search e síntese.
+- **Camada OOVS** (`services/ia/verificacao.py`, OWASP OSINT Verification Standard 0.1.0): origens distintas por domínio
+  registrável + similaridade de trecho (Jaccard de shingles ≥ 0,85), aterramento das afirmações do cartão (agent
+  `sentinela`, só RELEVANTE com pesquisa, `iaAterramento`), etiqueta de confiança determinística
+  (alta/média/baixa/não verificada/refutada) em `ia_tarefa.verificacao_json`, no cartão do Telegram, no alerta e em `/ia`.
+  Não implementar enxame de agentes, votação entre modelos nem grafo de conhecimento (custo × ganho).
+- **Radar**: termo solto com `*` é curinga de prefixo/infixo (`manifesta*` casa manifestação/manifestantes); em frase
+  entre aspas `*` continua sendo palavra inteira (semântica Google). Fontes novas só entram em `FONTES_PADRAO` depois de
+  passarem em `backend/scripts/validar_fontes.py` (workflow manual `fontes.yml`, que tem internet; o contêiner de dev não tem).
+- **Deploy automático**: job `deploy` do CI após merge na `main` com a suíte verde, por SSH com chave restrita a
+  `git pull && 03_o51nt.sh` (`deploy/vps/chave_deploy.sh` gera a chave e imprime os segredos `VPS_*`). Sem os segredos o job é pulado.
+- **Login**: um único fluxo (e-mail cadastrado + código). A tela tem o seletor Usuário/Administrador; "Administrador"
+  só confere o papel ao entrar. Sem autocadastro, sem senha, papéis só admin/analista.
 - SearXNG é opcional e **não respeita operadores do Google/X** → o botão fica desabilitado quando a query os usa.
 - Hashtags casam sem acento/caixa (diverge do X de propósito; formas originais preservadas e exibidas).
 - OneMillionTweetMap encerrado (HTML público sem hashtags). Google Notícias sem RSS (robots) → assistido.
@@ -112,6 +136,8 @@ IA = **OpenClaw** na VM (openclaw.ai, OpenClaw Foundation) com agents definidos,
 | 9 | **Login do painel**: e-mail autorizado + código de uso único; usuários só por admin; auditoria; fail2ban no Caddy; preparação Cloudflare | ✅ 2026-10-09 (SMTP pendente: até lá o código cai no journal) | Admin `adiogo27@gmail.com` (`O51NT_ADMIN_EMAIL` no `.env`). Código: `backend/app/{services/auth.py,middleware_auth.py,routers/auth.py,models/auth.py}`, `frontend/src/{lib/auth.tsx,pages/Login,pages/Usuarios}`. Entrega do código: SMTP → Telegram do usuário → journal. Isenção: acesso loopback **sem** `X-Forwarded-For` (OpenClaw/health). Anti-CSRF: cookie `SameSite=Strict` + `X-Requested-With: O51NT`. Caddy: basic auth mantida como 1ª camada, `confiaveis.caddy`, `X-Real-IP`, CSP em modo relatório; jail `o51nt-caddy`. Cloudflare: `07_cloudflare.sh` (faixas + `--fechar`) e `CLOUDFLARE.md` (passos no painel do dono: DNS proxied, WAF, rate limit, Zero Trust Access com PIN por e-mail) |
 
 Estado dos segredos (2026-10-09 19h UTC): Telegram OK (bot responde; exige `/start` do usuário antes), SMTP Gmail OK (código de login chega por e-mail), OpenAI OK (fallback do OpenClaw = `openai/gpt-5.5`), Anthropic OK desde 19h40 UTC (chave trocada pelo dono; agents respondem em `claude-sonnet-5-5`, fallback `openai/gpt-5.5`). OCR (rapidocr) instalado na VPS e validado com cartaz sintético. Armadilhas vistas: senha de app digitada no campo SMTP_HOST; OpenClaw reescreve `openclaw.json` em JSON (usar `openclaw config set`, não `sed`).
+
+| 11 | **Leva 2026-10-10**: README/CI (PR #1); teto US$ 1, preços atuais, Haiku 5.5 em extração/cartão; fontes candidatas + validação ao vivo; deeplinks (Buscadores, Arquivo, Dados oficiais, Bluesky/Threads/Reddit/Lyzem, Bing Visual); camada OOVS; seletor na tela de login; deploy automático; Vitest de utils | 🔄 PR aberto | Pendências do dono na VM: `sudo bash deploy/vps/chave_deploy.sh` + segredos no GitHub; `sudo bash deploy/vps/05_openclaw.sh` (agents em Haiku); Tema → teto 1.0 e Assistente (ou `PUT /api/settings`) |
 
 Arquivos de implantação versionados em `deploy/vps/` (scripts idempotentes; segredos só na VM).
 

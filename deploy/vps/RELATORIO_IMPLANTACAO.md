@@ -109,6 +109,20 @@ mensagem de teste para o chat 371824016 (@alertao51ntbot). Depois disso:
 | 7 | `06_ssh.sh` | root | fecha root/senha no SSH |
 | 8 | `07_cloudflare.sh [--fechar]` | root | faixas da Cloudflare no Caddy; `--fechar` restringe 80/443 à Cloudflare (ver `CLOUDFLARE.md`) |
 
+## Deploy automático (2026-10-10)
+
+O CI (`.github/workflows/ci.yml`) ganhou o job `deploy`: após merge na `main` com pytest, Vitest, tsc e Playwright verdes,
+ele entra por SSH na VM e executa `cd /opt/o51nt/app && git pull && bash deploy/vps/03_o51nt.sh`. A chave usada é
+exclusiva e restrita a esse comando (`authorized_keys` com `command=`, sem pty/forwarding). Ativação, uma vez, na VM:
+
+```bash
+sudo bash /opt/o51nt/app/deploy/vps/chave_deploy.sh   # imprime VPS_HOST, VPS_USER, VPS_KNOWN_HOSTS e a chave privada
+```
+
+Grave os quatro valores em GitHub → Settings → Secrets and variables → Actions. Sem eles o job é pulado com um aviso.
+Rodar o script de novo gera outra chave e revoga a anterior. O fail2ban do SSH continua ativo: um segredo errado por
+vários pushes seguidos pode banir o IP do runner por um tempo, sem efeito no serviço.
+
 ## Operação
 
 ```bash

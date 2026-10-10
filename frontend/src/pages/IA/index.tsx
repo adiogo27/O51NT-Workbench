@@ -4,11 +4,14 @@ import * as React from "react";
 import { useSearchParams } from "react-router-dom";
 import { ErrorText } from "@/components/shared";
 import { Alert, Badge, Button, Card, CardTitle, Empty, Field, Input, PageHeader, Select, TabPanel, Tabs } from "@/components/ui";
-import { api, qs, type IaCustoDia, type IaStatus, type IaTarefa, type Severidade } from "@/lib/api";
+import { api, qs, type EtiquetaConfianca, type IaCustoDia, type IaStatus, type IaTarefa, type Severidade } from "@/lib/api";
 import { formatDate, openExternal } from "@/lib/utils";
 import { SEV_LABEL, SEV_VARIANT } from "@/pages/Alertas";
 
 const VEREDITO_VARIANT: Record<string, "success" | "warning" | "muted" | "danger"> = { RELEVANTE: "danger", OBSERVAR: "warning", DESCARTAR: "muted" };
+// Etiqueta de confiança da camada OOVS (derivada mecanicamente de origens distintas + verificação + aterramento)
+const CONFIANCA_VARIANT: Record<EtiquetaConfianca, "success" | "warning" | "muted" | "danger"> = { alta: "success", media: "warning", baixa: "danger", nao_verificada: "muted", refutada: "danger" };
+const CONFIANCA_LABEL: Record<EtiquetaConfianca, string> = { alta: "alta", media: "média", baixa: "baixa", nao_verificada: "não verificada", refutada: "REFUTADA" };
 const STATUS_LABEL: Record<IaTarefa["status"], string> = { pendente: "na fila", em_processo: "processando", concluida: "concluída", erro: "erro" };
 const APROVACAO_LABEL: Record<IaTarefa["aprovacao"], string> = { nao_se_aplica: "—", pendente: "aguardando aprovação", aprovada: "aprovada", rejeitada: "rejeitada" };
 const SECOES = [
@@ -94,6 +97,7 @@ function Tarefa({ t, destaque }: { t: IaTarefa; destaque?: boolean }) {
         <Badge>{STATUS_LABEL[t.status]}{t.status === "em_processo" && t.etapa ? ` · ${t.etapa}` : ""}</Badge>
         {t.aprovacao !== "nao_se_aplica" && <Badge variant={t.aprovacao === "pendente" ? "warning" : t.aprovacao === "aprovada" ? "success" : "muted"}>{APROVACAO_LABEL[t.aprovacao]}</Badge>}
         {t.eh_evento && <Badge variant="accent">evento</Badge>}
+        {t.verificacao?.etiqueta && <Badge variant={CONFIANCA_VARIANT[t.verificacao.etiqueta]} title={(t.verificacao.motivos ?? []).join("; ")}>confiança {CONFIANCA_LABEL[t.verificacao.etiqueta]}</Badge>}
         {t.boletim_item_id && <Badge variant="success">boletim #{t.boletim_item_id}</Badge>}
         {t.agenda_evento_id && <Badge variant="success">agenda #{t.agenda_evento_id}</Badge>}
         <span className="ml-auto text-xs text-muted-foreground">{formatDate(t.concluido_em ?? t.criado_em)}</span>
@@ -114,6 +118,17 @@ function Tarefa({ t, destaque }: { t: IaTarefa; destaque?: boolean }) {
           )}
           {t.pesquisa?.resposta && (
             <p><strong>Pesquisa{t.pesquisa.verificacao ? ` (${t.pesquisa.verificacao})` : ""}:</strong> {t.pesquisa.resposta}{t.pesquisa.lacunas ? ` Lacunas: ${t.pesquisa.lacunas}` : ""}</p>
+          )}
+          {t.verificacao?.etiqueta && (
+            <p>
+              <strong>Verificação ({t.verificacao.norma ?? "OOVS"}):</strong> {t.verificacao.origens_distintas ?? 0} origem(ns) distinta(s), {t.verificacao.corroboracoes ?? 0} corroboração(ões) além da fonte do item
+              {typeof t.verificacao.duplicadas === "number" && t.verificacao.duplicadas > 0 ? `, ${t.verificacao.duplicadas} republicação(ões) descontada(s)` : ""}
+              {t.verificacao.aterramento?.total ? ` · aterramento ${t.verificacao.aterramento.sustentadas}/${t.verificacao.aterramento.total}` : ""}
+              {(t.verificacao.motivos?.length ?? 0) > 0 && <span className="block text-muted-foreground">{t.verificacao.motivos!.join(" · ")}</span>}
+            </p>
+          )}
+          {(t.aterramento?.afirmacoes?.length ?? 0) > 0 && (
+            <ul className="list-disc pl-5">{t.aterramento!.afirmacoes!.map((a, i) => <li key={i}><span className={a.sustentada === "sim" ? "text-success" : a.sustentada === "parcial" ? "text-warning" : "text-danger"}>{a.sustentada === "sim" ? "✓" : a.sustentada === "parcial" ? "~" : "✗"}</span> {a.texto}{typeof a.fonte === "number" ? ` (fonte ${a.fonte + 1})` : ""}</li>)}</ul>
           )}
           {(t.cartao?.fontes?.length ?? 0) > 0 && (
             <ul className="list-disc pl-5">{t.cartao.fontes!.map((u) => <li key={u}><a href={u} target="_blank" rel="noopener noreferrer" className="text-primary underline">{u}</a></li>)}</ul>

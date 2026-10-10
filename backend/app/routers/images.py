@@ -25,6 +25,7 @@ PROVEDORES: dict[str, dict[str, str | None]] = {
         "upload": "https://yandex.com/images",
         "por_url": "https://yandex.com/images/search?rpt=imageview&url={u}",
     },
+    "bing": {"nome": "Bing Visual Search", "upload": "https://www.bing.com/visualsearch", "por_url": "https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:{u}"},
     "lenso": {"nome": "Lenso.ai", "upload": "https://lenso.ai/pt", "por_url": None},
     "sensity": {"nome": "Sensity (Deep Fake Detection)", "upload": "https://platform.sensity.ai/login", "por_url": None},
 }

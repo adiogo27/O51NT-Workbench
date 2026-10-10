@@ -50,6 +50,8 @@ class IaTarefa(SQLModel, table=True):
     evento_json: str = "{}"
     pesquisa_json: str = "{}"
     cartao_json: str = "{}"
+    aterramento_json: str = "{}"  # checagem de aterramento (OOVS): afirmações do cartão × trechos das fontes
+    verificacao_json: str = "{}"  # origens distintas, corroborações, etiqueta de confiança (determinístico)
 
     aprovacao: str = Field(default="nao_se_aplica", index=True)  # nao_se_aplica | pendente | aprovada | rejeitada
     aprovado_por: str = ""

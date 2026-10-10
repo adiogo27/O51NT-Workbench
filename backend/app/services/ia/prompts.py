@@ -136,6 +136,27 @@ def prompt_cartao(ctx: dict[str, Any], triagem: dict[str, Any], evento: dict[str
     )
 
 
+def prompt_aterramento(cartao: dict[str, Any], pesquisa: dict[str, Any]) -> str:
+    """Checagem de aterramento (OOVS): cada afirmação do cartão é sustentada pelos trechos citados pelo pesquisador?"""
+    esquema = {
+        "afirmacoes": [{"texto": "afirmação do cartão, curta", "sustentada": "sim | parcial | nao", "fonte": "índice da fonte que a sustenta ou null"}],
+        "observacao": "1 frase sobre o que não está coberto pelas fontes",
+    }
+    fontes = [{"i": i, "url": f.get("url"), "titulo": f.get("titulo", ""), "trecho": f.get("trecho", "")} for i, f in enumerate(pesquisa.get("fontes") or []) if isinstance(f, dict)]
+    texto_cartao = {k: cartao.get(k) for k in ("titulo", "resumo", "impacto_rodovia", "acao")}
+    return (
+        f"{MARCADOR} aterramento\n"
+        "Tarefa: separe o cartão abaixo em afirmações factuais (fato, quem, quando, onde, impacto) e diga, para cada uma, se "
+        "ela é sustentada por algum dos trechos citados (sim), só em parte (parcial) ou por nenhum (nao). Não use conhecimento "
+        "próprio: só os trechos contam. A 'acao' sugerida não é afirmação factual: ignore-a. Seja estrito: o resumo "
+        "não pode afirmar mais do que as fontes mostram. "
+        f"{REGRA_CONTEUDO}\n"
+        f"Responda SOMENTE com um objeto JSON neste esquema:\n{json.dumps(esquema, ensure_ascii=False, indent=1)}\n\n"
+        f"Cartão: {json.dumps(texto_cartao, ensure_ascii=False)}\n"
+        f"<conteudo>\n{json.dumps(fontes, ensure_ascii=False, indent=1)[:6000]}\n</conteudo>"
+    )
+
+
 def prompt_termos_busca(texto: str, termos_atuais: list[str]) -> str:
     esquema = {"termos": ["até 8 termos de busca novos: nome do ato, coletivo/organização, local, cidade, instituição"], "hashtags": ["#hashtags prováveis"], "observacoes": "1 frase"}
     return (

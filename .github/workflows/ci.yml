@@ -104,3 +104,90 @@ jobs:
             frontend/test-results
           if-no-files-found: ignore
           retention-days: 7
+
+  # Validação ao vivo das fontes do Radar (o runner tem internet; o contêiner de dev não). Só roda quando o PR mexe nas
+  # fontes semeadas/candidatas, nunca bloqueia a suíte (continue-on-error) e publica o relatório no resumo do job.
+  # O mesmo script também está no workflow manual fontes.yml (disponível depois do merge na main).
+  fontes:
+    name: Fontes do Radar (validação ao vivo)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fontes mudaram neste PR?
+        id: mudou
+        run: |
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" | grep -E '^backend/(app/seed\.py|scripts/)'; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"; echo "fontes não mudaram: validação pulada" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.mudou.outputs.ok == 'true'
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Bibliotecas de sistema do OpenCV
+        if: steps.mudou.outputs.ok == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0
+      - name: Dependências Python
+        if: steps.mudou.outputs.ok == 'true'
+        run: pip install -r requirements.txt
+      - name: Validar fontes e rodar um ciclo do Radar ("manifestação OR manifestantes")
+        if: steps.mudou.outputs.ok == 'true'
+        working-directory: backend
+        run: python scripts/validar_fontes.py --query "manifestação OR manifestantes" --saida ../relatorio_fontes.json
+      - uses: actions/upload-artifact@v4
+        if: steps.mudou.outputs.ok == 'true'
+        with:
+          name: relatorio-fontes
+          path: relatorio_fontes.json
+          retention-days: 30
+
+  # Deploy automático na VPS após merge na main, só com a suíte inteira verde. Requer os segredos gerados por
+  # deploy/vps/chave_deploy.sh (VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS); sem eles o job é pulado.
+  # A chave na VM é restrita (authorized_keys command=) a: cd /opt/o51nt/app && git pull && bash deploy/vps/03_o51nt.sh
+  deploy:
+    name: Deploy na VPS (main)
+    needs: [backend, frontend, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: producao
+    concurrency:
+      group: deploy-vps
+      cancel-in-progress: false
+    steps:
+      - name: Segredos presentes?
+        id: segredos
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ] || [ -z "$VPS_HOST" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::notice::VPS_SSH_KEY/VPS_HOST ausentes: deploy pulado (rode deploy/vps/chave_deploy.sh na VM e grave os segredos)"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Chave e known_hosts
+        if: steps.segredos.outputs.ok == 'true'
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          if [ -n "$VPS_KNOWN_HOSTS" ]; then printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -t ed25519 -H "$VPS_HOST" > ~/.ssh/known_hosts; fi
+          chmod 644 ~/.ssh/known_hosts
+      - name: git pull + 03_o51nt.sh na VM (comando fixado na chave)
+        if: steps.segredos.outputs.ok == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER || 'o51nt' }}
+        run: ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o BatchMode=yes "$VPS_USER@$VPS_HOST" deploy

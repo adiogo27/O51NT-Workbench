@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -157,6 +157,54 @@ class PesquisaOut(BaseModel):
         except (TypeError, ValueError):
             return 0.0
         return max(0.0, min(1.0, f / 100 if f > 1 else f))
+
+
+class Afirmacao(BaseModel):
+    texto: str = ""
+    sustentada: Literal["sim", "parcial", "nao"] = "nao"
+    fonte: int | None = None  # índice da fonte (lista do pesquisador) que sustenta a afirmação
+
+    @field_validator("sustentada", mode="before")
+    @classmethod
+    def _sus(cls, v: object) -> object:
+        s = str(v or "").strip().lower()
+        if s in ("true", "sim", "yes", "confirmada", "confirmado", "sustentada"):
+            return "sim"
+        if s in ("parcial", "partial", "parcialmente"):
+            return "parcial"
+        if s in ("false", "nao", "não", "no", "nao_sustentada", "refutada"):
+            return "nao"
+        return v
+
+    @field_validator("texto", mode="before")
+    @classmethod
+    def _txt_af(cls, v: object) -> str:
+        return _txt(v, 300)
+
+
+class AterramentoOut(BaseModel):
+    """Saída da checagem de aterramento (agent `sentinela`): cada afirmação do cartão × trechos citados pelo pesquisador."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    afirmacoes: list[Afirmacao] = Field(default_factory=list)
+    observacao: str = ""
+
+    @field_validator("afirmacoes", mode="before")
+    @classmethod
+    def _lista_af(cls, v: object) -> list:
+        return [a for a in (v or []) if isinstance(a, dict)] if isinstance(v, list) else []
+
+    @property
+    def total(self) -> int:
+        return len(self.afirmacoes)
+
+    @property
+    def sustentadas(self) -> int:
+        return sum(1 for a in self.afirmacoes if a.sustentada == "sim")
+
+    def resumo(self) -> dict[str, Any]:
+        return {"sustentadas": self.sustentadas, "parciais": sum(1 for a in self.afirmacoes if a.sustentada == "parcial"), "total": self.total, "afirmacoes": [a.model_dump() for a in self.afirmacoes], "observacao": self.observacao}
 
 
 class CartaoOut(BaseModel):

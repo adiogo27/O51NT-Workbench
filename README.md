@@ -142,6 +142,10 @@ ssh o51nt@<vps>
 cd /opt/o51nt/app && git pull && bash deploy/vps/03_o51nt.sh
 ```
 
+**Deploy automático**: o job `deploy` do CI roda esse mesmo `git pull` + `03_o51nt.sh` por SSH a cada merge na `main` com
+a suíte verde. Para ativar: na VM, `sudo bash deploy/vps/chave_deploy.sh` (gera uma chave restrita a esse comando) e grave
+os segredos `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` em Settings → Secrets → Actions. Sem eles, o job é pulado.
+
 Segredos (Telegram, SMTP, Anthropic/OpenAI, token do gateway) só na VM, gravados por `segredos.sh`. Relatório completo,
 armadilhas e operação em `deploy/vps/RELATORIO_IMPLANTACAO.md`; contexto operacional e progresso em `CLAUDE.md`.
 
@@ -204,9 +208,13 @@ recurso para produzir o boletim "INFORMAÇÕES RELEVANTES". Fonte em `deploy/gui
 ## Radar — como os monitores pesquisam de verdade
 
 Buscadores bloqueiam coleta automática (CAPTCHA/robots.txt), então o Radar usa o que foi feito para máquina ler:
-**feeds**, e, para sites sem feed, **páginas HTML** com detecção de mudança por hash. Onze fontes verificadas vêm
-cadastradas (Agência Brasil, g1, Folha, UOL, Metrópoles, Poder360, CNN Brasil, Estadão e a hashtag `#eleicoes2026` no
-Mastodon); outras entram em **Fontes do radar** (teste a URL antes de gravar: `POST /api/radar/fontes/testar`).
+**feeds**, e, para sites sem feed, **páginas HTML** com detecção de mudança por hash. Cerca de 50 fontes validadas ao
+vivo vêm cadastradas: grande imprensa (g1, Folha, UOL, Metrópoles, Poder360, CNN Brasil, Estadão), Agência Brasil e
+TSE, agências de checagem (Lupa, Aos Fatos), imprensa independente (Agência Pública, Intercept, Nexo, CartaCapital,
+Fórum, Brasil 247, GGN, DCM, Mídia Ninja, Ponte, piauí, JOTA), BBC e RFI em português, regionais de 15 UFs, hashtags no
+Mastodon e um **feed de busca do Google Notícias** (manifestação/protesto/bloqueio/carreata, com robots.txt ignorado
+por decisão do dono). Outras entram em **Fontes do radar** (teste a URL antes de gravar: `POST /api/radar/fontes/testar`);
+candidatas e validação em lote: `backend/scripts/validar_fontes.py` (workflow "Fontes do Radar" no GitHub Actions).
 A cada ciclo (padrão 10 min, ajustável em **Tema**), o Radar:
 
 1. coleta cada fonte ativa pelo scraper ético (robots.txt, 1 req/3 s por domínio, backoff em 403/429);
@@ -265,8 +273,11 @@ ser um crawler furtivo. Os itens abaixo são fronteiras deliberadas do produto, 
 - **Google Notícias:** o `robots.txt` não libera `/rss/`, então não há coleta automática; a seção "Notícias relevantes"
   do Boletim é assistida (deeplink + registro manual com evidência).
 - **Operadores do X/TweetDeck** só funcionam no X. O Query Builder os valida e avisa.
-- **Contratos congelados:** endpoints e campos existentes não mudam; toda evolução é aditiva (ex.: `/api/alertas/contagem`
-  não ganhou chave nova com a IA).
+- **Contratos:** endpoints e campos existentes não mudam por padrão; toda evolução é aditiva (ex.: `/api/alertas/contagem`
+  não ganhou chave nova com a IA). `robots.txt` e o ritmo de 1 req/3 s são o padrão, mas o analista pode desligar o
+  robots.txt fonte a fonte (feeds de busca, YouTube). Nunca: CAPTCHA, login automatizado, rotação de UA/proxies.
+- **Verificação (OOVS 0.1.0):** cada item RELEVANTE recebe uma etiqueta de confiança derivada mecanicamente de origens
+  distintas (republicações contam uma vez), da verificação do pesquisador e do aterramento das afirmações do cartão.
 
 ## Avisos legais
 

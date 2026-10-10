@@ -10,12 +10,17 @@ pytestmark = pytest.mark.integration
 
 def test_fontes_seedadas_e_catalogo(client: TestClient) -> None:
     fontes = client.get("/api/radar/fontes").json()
-    assert len(fontes) == 11 and all(f["ativa"] for f in fontes)
+    from app.seed import FONTES_PADRAO, FONTES_PADRAO_PAGINA, FONTES_PADRAO_SEM_ROBOTS
+
+    assert len(fontes) == len(FONTES_PADRAO) >= 11 and all(f["ativa"] for f in fontes)
+    por_url = {f["url"]: f for f in fontes}
+    assert all(por_url[u]["respeitar_robots"] is False for u in FONTES_PADRAO_SEM_ROBOTS) and por_url["https://g1.globo.com/rss/g1/politica/"]["respeitar_robots"] is True
+    assert all(por_url[u]["tipo"] == "pagina" and por_url[u]["intervalo_min"] == 30 for u in FONTES_PADRAO_PAGINA) and por_url["https://g1.globo.com/rss/g1/politica/"]["tipo"] == "feed"
     assert {"g1 — política", "Agência Brasil — política", "Mastodon — #eleicoes2026 (mastodon.social)"} <= {f["nome"] for f in fontes}
     cat = client.get("/api/radar/fontes/catalogo").json()
-    assert all(c["cadastrada"] for c in cat if c["tipo"] == "feed")
+    assert all(c["cadastrada"] for c in cat if c["tipo"] in ("feed", "pagina"))
     modelos = [c for c in cat if c["tipo"] == "modelo"]
-    assert {m["nome"] for m in modelos} == {"Google Alertas (feed pessoal)", "Mastodon — hashtag (qualquer instância)"}
+    assert {"Google Alertas (feed pessoal)", "Mastodon — hashtag (qualquer instância)", "Google Notícias — busca (RSS por termo)", "YouTube — canal (feed de vídeos)", "Reddit — subreddit (novos)"} <= {m["nome"] for m in modelos}
     assert all(not m["cadastrada"] for m in modelos)
 
 

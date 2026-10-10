@@ -50,6 +50,8 @@ class TarefaOut(BaseModel):
     evento: dict[str, Any]
     pesquisa: dict[str, Any]
     cartao: dict[str, Any]
+    aterramento: dict[str, Any] = {}  # aditivo (2026-10-10)
+    verificacao: dict[str, Any] = {}  # aditivo (2026-10-10): etiqueta de confiança OOVS
     aprovacao: str
     aprovado_por: str
     aprovado_em: datetime | None
@@ -103,7 +105,7 @@ def _out(t: IaTarefa) -> TarefaOut:
             return {}
         return d if isinstance(d, dict) else {}
 
-    return TarefaOut(**{**t.model_dump(exclude={"triagem_json", "evento_json", "pesquisa_json", "cartao_json"}), "triagem": j(t.triagem_json), "evento": j(t.evento_json), "pesquisa": j(t.pesquisa_json), "cartao": j(t.cartao_json)})
+    return TarefaOut(**{**t.model_dump(exclude={"triagem_json", "evento_json", "pesquisa_json", "cartao_json", "aterramento_json", "verificacao_json"}), "triagem": j(t.triagem_json), "evento": j(t.evento_json), "pesquisa": j(t.pesquisa_json), "cartao": j(t.cartao_json), "aterramento": j(t.aterramento_json), "verificacao": j(t.verificacao_json)})
 
 
 def _get(session: Session, tarefa_id: int) -> IaTarefa:

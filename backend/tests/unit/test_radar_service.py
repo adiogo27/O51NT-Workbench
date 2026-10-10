@@ -87,6 +87,14 @@ def test_frase_exata_com_curinga_e_negacao() -> None:
     assert casa("PRF -concurso", N1) == ["PRF"] and casa("PRF -concurso", N2) == []
 
 
+def test_termo_solto_com_curinga_de_prefixo() -> None:
+    """'manifesta*' casa manifestação, manifestantes e manifestaram (sem acento/caixa); não vaza para outras palavras."""
+    atos = [radar.alvo_de(t, "", "https://ex.org/a", None) for t in ("Manifestantes bloqueiam a BR-116", "Manifestação em Belo Horizonte", "MANIFESTACAO sem acento", "Caminhoneiros se manifestaram")]
+    assert all(casa("manifesta*", a) == ["manifesta*"] for a in atos)
+    assert casa("manifesta*", N2) == [] and casa("manifesta* OR concurso", N2) == ["concurso"]
+    assert casa("manifesta* -pacifica", radar.alvo_de("Manifestação pacífica", "", "https://ex.org/b", None)) == []
+
+
 def test_hashtag_e_mencao_com_ou_sem_simbolo() -> None:
     a = radar.alvo_de("Mobilização", "veja #EleNão hoje e @PRFBrasil", "https://ex.org/h", None)
     assert casa("#elenao", a) == ["#elenao"] and casa("@prfbrasil", a) == ["@prfbrasil"]
@@ -207,3 +215,16 @@ async def test_casar_monitor_cache_novo_monitor(data_dir: Path) -> None:
         assert radar.casar_monitor_cache(s, mon) == []  # idempotente
         assert radar.contagens_hits(s) == {mon.id: (1, 1)}
     await scraper.stop()
+
+
+def test_parse_feed_tolerante_a_entidades_e_lixo() -> None:
+    """Feeds reais (Senado, Câmara, Gazeta do Povo…) trazem &nbsp; e lixo após a raiz: o parser tolerante salva o que dá."""
+    sujo = (
+        '<?xml version="1.0"?><rss version="2.0"><channel><title>Agência&nbsp;X</title>'
+        "<item><title>Senado aprova&nbsp;projeto</title><link>https://ex.org/s1</link><description>texto &copy; 2026</description></item>"
+        "<item><title>Ok</title><link>https://ex.org/s2</link></item></channel></rss>\n<!-- lixo depois da raiz -->"
+    )
+    itens = radar.parse_feed(sujo)
+    assert [i.url for i in itens] == ["https://ex.org/s1", "https://ex.org/s2"] and itens[0].titulo.startswith("Senado aprova")
+    with pytest.raises(ValueError):
+        radar.parse_feed("isto não é xml de jeito nenhum")

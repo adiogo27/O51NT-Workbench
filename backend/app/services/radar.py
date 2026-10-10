@@ -102,12 +102,49 @@ def parse_data(valor: str | None) -> datetime | None:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
+_ENTIDADE_RE = re.compile(rb"&([A-Za-z][A-Za-z0-9]*);")
+_ENTIDADES_XML = {b"lt", b"gt", b"amp", b"quot", b"apos"}
+
+
+def _entidades_html_para_numericas(dados: bytes) -> bytes:
+    """&nbsp; &copy; &eacute;… (HTML) viram &#160; &#169;… — XML só conhece as cinco básicas."""
+    from html.entities import name2codepoint
+
+    def troca(m: re.Match[bytes]) -> bytes:
+        nome = m.group(1)
+        if nome in _ENTIDADES_XML:
+            return m.group(0)
+        cp = name2codepoint.get(nome.decode("ascii"))
+        return f"&#{cp};".encode() if cp else m.group(0)
+
+    return _ENTIDADE_RE.sub(troca, dados)
+
+
+def _recuperar_xml(dados: bytes) -> ET.Element | None:
+    """Segunda chance com o parser tolerante do lxml (recover=True): entidades HTML, tags mal fechadas, lixo após a raiz."""
+    try:
+        from lxml import etree as LET
+
+        parser = LET.XMLParser(recover=True, huge_tree=True, resolve_entities=False, no_network=True)
+        raiz = LET.fromstring(_entidades_html_para_numericas(dados), parser)
+        if raiz is None:
+            return None
+        return ET.fromstring(LET.tostring(raiz))
+    except Exception:
+        return None
+
+
 def parse_feed(texto: str) -> list[ItemFeed]:
     """RSS 2.0, RSS 1.0 (RDF) e Atom. Ignora itens sem link; deduplica por URL dentro do feed."""
+    dados = texto.strip().encode("utf-8", "replace")
+    erro_xml: str | None = None
     try:
-        raiz = ET.fromstring(texto.strip().encode("utf-8", "replace"))
+        raiz = ET.fromstring(dados)
     except ET.ParseError as exc:
-        raise ValueError(f"feed inválido (XML): {exc}") from exc
+        raiz = _recuperar_xml(dados)  # feeds reais vêm com &nbsp;, lixo após a raiz, caracteres de controle…
+        if raiz is None:
+            raise ValueError(f"feed inválido (XML): {exc}") from exc
+        erro_xml = str(exc)
     tipo = _local(raiz.tag)
     if tipo not in ("rss", "rdf", "feed"):
         raise ValueError(f"feed inválido: raiz <{tipo}> não é rss/rdf/feed")
@@ -154,6 +191,8 @@ def parse_feed(texto: str) -> list[ItemFeed]:
             titulo = resumo[:120]  # Mastodon: itens sem <title>
         publicado = parse_data(_texto(_primeiro(campos, "pubdate", "published", "updated", "date")))
         itens.append(ItemFeed(url=link, titulo=titulo[:300], resumo=resumo[:RESUMO_MAX], publicado_em=publicado, midias=midias[:6]))
+    if erro_xml and not itens:  # recuperado mas vazio: continua sendo um feed inválido
+        raise ValueError(f"feed inválido (XML): {erro_xml}")
     return itens
 
 
@@ -249,7 +288,9 @@ def _regex_termo(valor: str, tipo: TipoToken) -> re.Pattern[str]:
         return re.compile(rf"(?<!\w)#?{re.escape(v.lstrip('#'))}(?!\w)")
     if tipo is TipoToken.MENCAO:
         return re.compile(rf"(?<!\w)@?{re.escape(v.lstrip('@'))}(?!\w)")
-    return re.compile(rf"(?<![\w#@]){re.escape(v)}(?!\w)")
+    # termo solto com curinga: "manifesta*" casa manifestação/manifestantes/manifestam (prefixo/infixo, só dentro da palavra)
+    corpo = re.escape(v).replace(r"\*", r"\w*")
+    return re.compile(rf"(?<![\w#@]){corpo}(?!\w)")
 
 
 # AST: ("and", [nós]) | ("or", [nós]) | ("term", rotulo, regex, negado) | ("op", chave, valor, negado) | ("true",)

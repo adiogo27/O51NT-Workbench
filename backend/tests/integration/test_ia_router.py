@@ -23,6 +23,7 @@ RSS = """<?xml version="1.0"?><rss version="2.0"><channel><title>Portal</title>
 TRIAGEM_RELEVANTE = {"veredito": "RELEVANTE", "severidade": "alta", "justificativa": "Convocação com data, local e rodovia federal.", "acao_sugerida": "monitorar BR-101 no domingo", "secao": "manifestacao", "eh_evento": True, "tags": ["carreata", "BR-101"]}
 EVENTO = {"tipo": "carreata", "titulo": "Carreata de domingo", "data": "2026-10-12", "hora": "09:00", "cidade": "Palhoça", "uf": "SC", "local": "trevo da BR-101", "rodovias": ["BR-101"], "organizador": "Coletivo X", "pauta": "protesto", "canais": ["whatsapp"], "impacto_rodovia_federal": True, "confianca": 0.9, "_notas": ""}
 PESQUISA = {"resposta": "Convocação confirmada em dois veículos.", "verificacao": "confirmado", "fontes": [{"url": "https://oficial.test/nota", "titulo": "Nota", "trecho": "..."}], "confianca": 0.8, "lacunas": "sem estimativa de público"}
+ATERRAMENTO = {"afirmacoes": [{"texto": "carreata no domingo", "sustentada": "sim", "fonte": 0}, {"texto": "concentração às 9h no trevo da BR-101", "sustentada": "sim", "fonte": 0}, {"texto": "bloqueio parcial km 210", "sustentada": "parcial", "fonte": 0}], "observacao": "km não aparece na nota"}
 CARTAO = {"titulo": "Carreata deve bloquear a BR-101 em Palhoça no domingo", "resumo": "Organizadores convocam concentração às 9h no trevo da BR-101.", "impacto_rodovia": "Bloqueio parcial da BR-101 km 210.", "acao": "Acionar o plantão regional.", "fontes": ["https://portal.test/carreata-br-101", "https://oficial.test/nota"]}
 
 
@@ -57,7 +58,7 @@ def test_pipeline_completo_relevante_com_aprovacao(client: TestClient, fake_fetc
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "371824016")
     config.get_settings.cache_clear()
     _preparar(client, fake_fetcher, query="BR-101")
-    fake_openclaw.responder("sentinela", TRIAGEM_RELEVANTE)
+    fake_openclaw.responder("sentinela", TRIAGEM_RELEVANTE, ATERRAMENTO)  # a 2ª resposta do sentinela é o aterramento (OOVS)
     fake_openclaw.responder("extrator", EVENTO)
     fake_openclaw.responder("pesquisador", PESQUISA)
     fake_openclaw.responder("redator", CARTAO)
@@ -74,18 +75,25 @@ def test_pipeline_completo_relevante_com_aprovacao(client: TestClient, fake_fetc
             assert t["status"] == "concluida" and t["veredito"] == "RELEVANTE" and t["severidade"] == "alta" and t["eh_evento"] is True
             assert t["evento"]["data"] == "2026-10-12" and t["pesquisa"]["verificacao"] == "confirmado" and t["cartao"]["titulo"].startswith("Carreata")
             assert t["aprovacao"] == "pendente" and t["alerta_id"] and t["telegram_enviado"] is True
-            assert t["tokens_entrada"] == 4000 and t["custo_usd"] > 0 and "triagem=claude-haiku-5-5" in t["modelos"]
-            assert [c["agent"] for c in fake_openclaw.chamadas] == ["sentinela", "extrator", "pesquisador", "redator"]
+            assert t["tokens_entrada"] == 5000 and t["custo_usd"] > 0 and "triagem=claude-haiku-5-5" in t["modelos"] and "aterramento=claude-haiku-5-5" in t["modelos"]
+            assert [c["agent"] for c in fake_openclaw.chamadas] == ["sentinela", "extrator", "pesquisador", "redator", "sentinela"]
+            # camada OOVS: 2 origens (portal.test = item, oficial.test = corroboração), aterramento 2/3 → etiqueta "baixa" (confirmado + 1 corroboração = média, aterramento parcial rebaixa)
+            v = t["verificacao"]
+            assert v["norma"] == "OOVS 0.1.0" and v["origens_distintas"] == 2 and v["corroboracoes"] == 1 and v["aterramento"] == {"sustentadas": 2, "total": 3} and v["etiqueta"] == "baixa"
+            assert t["aterramento"]["afirmacoes"][2]["sustentada"] == "parcial" and "<conteudo>" in fake_openclaw.chamadas[4]["mensagem"] and "aterramento" in fake_openclaw.chamadas[4]["mensagem"]
             assert fake_openclaw.chamadas[0]["modelo"] == "anthropic/claude-haiku-5-5" and fake_openclaw.chamadas[0]["auth"] == "Bearer token-teste"
+            # extração e cartão vão com o modelo leve (iaModeloLeve); o pesquisador fica com o modelo do agent (Sonnet)
+            assert [c["modelo"] for c in fake_openclaw.chamadas[1:]] == ["anthropic/claude-haiku-5-5", None, "anthropic/claude-haiku-5-5", "anthropic/claude-haiku-5-5"]
+            assert "extracao=claude-haiku-5-5" in t["modelos"] and "cartao=claude-haiku-5-5" in t["modelos"]
             assert "<conteudo>" in fake_openclaw.chamadas[0]["mensagem"] and "BR-101" in fake_openclaw.chamadas[0]["mensagem"]
-            assert envio.call_count == 1 and "aprovar " in envio.calls[0].request.content.decode()
+            assert envio.call_count == 1 and "aprovar " in envio.calls[0].request.content.decode() and "confiança baixa" in envio.calls[0].request.content.decode()
             # inbox: alerta tipo "ia"; contagem mantém o contrato (sem chave nova) e inclui o total
             alertas = client.get("/api/alertas?tipo=ia").json()
-            assert len(alertas) == 1 and alertas[0]["severidade"] == "alta" and alertas[0]["titulo"].startswith("[RELEVANTE]")
+            assert len(alertas) == 1 and alertas[0]["severidade"] == "alta" and alertas[0]["titulo"].startswith("[RELEVANTE]") and "OOVS 0.1.0" in alertas[0]["resumo"]
             cont = client.get("/api/alertas/contagem").json()
             assert set(cont) == {"total", "criticos", "convocacao", "convite", "radar"} and cont["total"] == 1
             st = client.get("/api/ia/status").json()
-            assert st["aprovacoes_pendentes"] == 1 and st["alertas_ia_nao_lidos"] == 1 and st["custo_hoje"]["chamadas"] == 4
+            assert st["aprovacoes_pendentes"] == 1 and st["alertas_ia_nao_lidos"] == 1 and st["custo_hoje"]["chamadas"] == 5
             # aprovação → Boletim + Agenda (idempotente)
             ap = client.post(f"/api/ia/tarefas/{t['id']}/aprovar", json={"destino": "ambos"}).json()
             assert ap["aprovacao"] == "aprovada" and ap["boletim_item_id"] and ap["agenda_evento_id"]
@@ -137,12 +145,12 @@ def test_observar_vai_para_o_resumo_periodico(client: TestClient, fake_fetcher: 
 
 
 def test_teto_diario_e_gateway_indisponivel(client: TestClient, fake_fetcher: FakeFetcher, fake_openclaw: FakeOpenClaw) -> None:
-    _preparar(client, fake_fetcher, {"iaCustoDiarioUsd": 0.0005}, query="BR-116 OR BR-101")
+    _preparar(client, fake_fetcher, {"iaCustoDiarioUsd": 0.0001}, query="BR-116 OR BR-101")
     fake_openclaw.responder("sentinela", {"veredito": "DESCARTAR", "severidade": "baixa", "justificativa": "x"})
     client.post("/api/radar/ciclo")
     assert len(client.get("/api/ia/tarefas?status=pendente").json()) == 2
     res = client.post("/api/ia/ciclo").json()
-    assert res["processadas"] == 1 and "teto" in res["motivo_parada"]  # 1ª custa ~0.0015 > teto → a 2ª espera
+    assert res["processadas"] == 1 and "teto" in res["motivo_parada"]  # 1ª triagem (Haiku 5.5: 1000+100 tokens) custa 0.00015 > teto → a 2ª espera
     assert client.get("/api/ia/status").json()["custo_hoje"]["bloqueado"] is True
     # gateway fora do ar: nada é consumido, a tarefa fica pendente sem contar tentativa
     cfg = client.get("/api/settings").json()

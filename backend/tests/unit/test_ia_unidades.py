@@ -32,9 +32,12 @@ def test_extrair_json_tolerante() -> None:
 
 
 def test_estimar_custo_por_modelo() -> None:
-    assert estimar_custo("claude-haiku-5-5", 1_000_000, 0) == 1.0
-    assert estimar_custo("anthropic/claude-sonnet-5-5", 0, 1_000_000) == 15.0
-    assert estimar_custo("desconhecido", 1_000_000, 0) == 3.0
+    # lista de preços da Anthropic (2026-10): Haiku 5.5 = 0,10/0,50; Haiku 4.5 = 1/5; Sonnet 5.5 = 2/10; Opus 5.5 = 4/20
+    assert estimar_custo("claude-haiku-5-5", 1_000_000, 0) == 0.1
+    assert estimar_custo("claude-haiku-4-5", 1_000_000, 0) == 1.0
+    assert estimar_custo("anthropic/claude-sonnet-5-5", 0, 1_000_000) == 10.0
+    assert estimar_custo("anthropic/claude-opus-5-5", 1_000_000, 0) == 4.0
+    assert estimar_custo("desconhecido", 1_000_000, 0) == 3.0  # desconhecido: estimativa conservadora
 
 
 def test_esquemas_normalizam_valores() -> None:
@@ -118,3 +121,64 @@ def test_catalogo_ferramentas_marca_sensiveis() -> None:
     assert {"whois", "dig", "sherlock", "maigret", "exiftool", "ytdlp", "holehe", "h8mail", "phoneinfoga", "theharvester", "subfinder", "dnsrecon"} <= ids
     assert all(not f["habilitada"] for f in cat if f["sensivel"]) and all(f["habilitada"] for f in cat if not f["sensivel"])
     assert not any(x in ids for x in ("nmap", "masscan", "nuclei", "hydra", "sqlmap", "gobuster", "wpscan"))
+
+
+# ---------------------------------------------------------------- camada de verificação (OOVS 0.1.0)
+def test_dominio_registravel() -> None:
+    from app.services.ia.verificacao import dominio_registravel
+
+    assert dominio_registravel("https://www.g1.globo.com/x") == "globo.com"
+    assert dominio_registravel("https://agenciabrasil.ebc.com.br/y") == "ebc.com.br"
+    assert dominio_registravel("https://m.folha.uol.com.br/poder/") == "uol.com.br"
+    assert dominio_registravel("https://www.gov.br/prf/pt-br") == "gov.br"
+    assert dominio_registravel("https://mastodon.social/@x") == "mastodon.social"
+    assert dominio_registravel("sem-url") == "" and dominio_registravel("") == ""
+
+
+def test_origens_distintas_contam_origens_e_nao_mencoes() -> None:
+    """OOVS: três cópias da mesma nota de agência = uma origem; a fonte do próprio item não é corroboração."""
+    from app.services.ia.verificacao import agrupar_origens
+
+    nota = "A Polícia Rodoviária Federal informou que a BR-116 será bloqueada no domingo pela manhã por manifestantes da região"
+    fontes = [
+        {"url": "https://portal.test/carreata", "titulo": "Carreata", "trecho": nota},  # o próprio item
+        {"url": "https://www.portal.test/amp/carreata", "titulo": "Carreata", "trecho": nota},  # mesmo domínio
+        {"url": "https://outro.test/republica", "titulo": "Republicação", "trecho": nota + " (via agência)"},  # texto igual
+        {"url": "https://oficial.test/nota", "titulo": "Nota da PRF", "trecho": "A PRF confirma o planejamento de desvio no km 210 e orienta motoristas"},
+        {"url": "https://jornal.test/materia", "titulo": "Jornal", "trecho": "Moradores relatam cartazes convocando o ato para domingo às 9h"},
+    ]
+    r = agrupar_origens(fontes, url_item="https://portal.test/carreata")
+    assert r["origens_distintas"] == 3 and r["corroboracoes"] == 2 and r["duplicadas"] == 2
+    assert r["grupos"][0]["inclui_item"] and sorted(r["grupos"][0]["fontes"]) == [0, 1, 2]
+    assert agrupar_origens([], None) == {"origens_distintas": 0, "corroboracoes": 0, "duplicadas": 0, "grupos": []}
+
+
+def test_etiqueta_de_confianca_e_mecanica() -> None:
+    from app.services.ia.verificacao import etiqueta_confianca
+
+    assert etiqueta_confianca(5, "confirmado", None, houve_pesquisa=False)[0] == "nao_verificada"
+    assert etiqueta_confianca(5, "falso", None, True)[0] == "refutada"
+    assert etiqueta_confianca(2, "confirmado", None, True)[0] == "alta"
+    assert etiqueta_confianca(1, "confirmado", None, True)[0] == "media"
+    assert etiqueta_confianca(0, "confirmado", None, True)[0] == "baixa"
+    assert etiqueta_confianca(3, "parcial", None, True)[0] == "media"  # resumo favorável não passa por cima do detalhe
+    assert etiqueta_confianca(3, "nao_confirmado", None, True)[0] == "baixa"
+    assert etiqueta_confianca(3, "confirmado", {"sustentadas": 4, "total": 4}, True)[0] == "alta"
+    assert etiqueta_confianca(3, "confirmado", {"sustentadas": 3, "total": 4}, True)[0] == "media"
+    etq, motivos = etiqueta_confianca(3, "confirmado", {"sustentadas": 1, "total": 4}, True)
+    assert etq == "baixa" and any("aterramento fraco" in m for m in motivos)
+
+
+def test_resumo_verificacao_e_aterramento_out() -> None:
+    from app.services.ia.esquemas import AterramentoOut
+    from app.services.ia.verificacao import resumo_verificacao, texto_etiqueta
+
+    at = AterramentoOut.model_validate({"afirmacoes": [{"texto": "bloqueio domingo", "sustentada": "true", "fonte": 0}, {"texto": "km 210", "sustentada": "parcialmente"}, {"texto": "público de 5 mil", "sustentada": "não"}, "lixo"], "observacao": "x"})
+    assert at.total == 3 and at.sustentadas == 1 and [a.sustentada for a in at.afirmacoes] == ["sim", "parcial", "nao"]
+    pesquisa = {"verificacao": "confirmado", "fontes": [{"url": "https://oficial.test/nota", "trecho": "..."}, {"url": "https://jornal.test/m", "trecho": "..."}], "lacunas": "sem estimativa de público"}
+    v = resumo_verificacao("https://portal.test/item", pesquisa, {"fontes": ["https://portal.test/item", "https://www.jornal.test/m2"]}, at.resumo())
+    assert v["norma"] == "OOVS 0.1.0" and v["origens_distintas"] == 3 and v["corroboracoes"] == 2 and v["duplicadas"] == 1
+    assert v["etiqueta"] == "baixa" and v["aterramento"] == {"sustentadas": 1, "total": 3} and any("lacunas" in m for m in v["motivos"])
+    assert texto_etiqueta(v) == "confiança baixa · 3 origem(ns) distinta(s) · aterramento 1/3"
+    v2 = resumo_verificacao("https://portal.test/item", None, {"fontes": ["https://portal.test/item"]}, None)
+    assert v2["etiqueta"] == "nao_verificada" and v2["origens_distintas"] == 1 and v2["corroboracoes"] == 0 and texto_etiqueta(None) == ""

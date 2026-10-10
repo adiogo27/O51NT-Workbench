@@ -221,8 +221,12 @@ export default function SettingsPage() {
             </Field>
             <Field label="Resumo dos OBSERVAR (horas)" htmlFor="ia-res"><Input id="ia-res" type="number" min={1} max={168} value={draft.preferencias.iaResumoHoras} onChange={(e) => setPref("iaResumoHoras", Number(e.target.value))} /></Field>
             <Field label="Modelo da triagem" htmlFor="ia-mt" hint="barato: 1 chamada por item"><Input id="ia-mt" value={draft.preferencias.iaModeloTriagem} onChange={(e) => setPref("iaModeloTriagem", e.target.value)} /></Field>
-            <Field label="Modelo das demais etapas" htmlFor="ia-mp" hint="vazio = padrão configurado no OpenClaw"><Input id="ia-mp" value={draft.preferencias.iaModeloPadrao ?? ""} onChange={(e) => setPref("iaModeloPadrao", e.target.value || null)} placeholder="anthropic/claude-sonnet-5-5" /></Field>
+            <Field label="Modelo do pesquisador" htmlFor="ia-mp" hint="etapa com ferramentas; vazio = padrão do OpenClaw"><Input id="ia-mp" value={draft.preferencias.iaModeloPadrao ?? ""} onChange={(e) => setPref("iaModeloPadrao", e.target.value || null)} placeholder="anthropic/claude-sonnet-5-5" /></Field>
+            <Field label="Modelo leve (extração e cartão)" htmlFor="ia-ml" hint="JSON curto: Haiku 5.5 custa 1/20 do Sonnet"><Input id="ia-ml" value={draft.preferencias.iaModeloLeve ?? ""} onChange={(e) => setPref("iaModeloLeve", e.target.value || null)} placeholder="anthropic/claude-haiku-5-5" /></Field>
             <Field label="Texto da matéria (máx. caracteres)" htmlFor="ia-txt"><Input id="ia-txt" type="number" min={500} max={30000} value={draft.preferencias.iaTextoMaxChars} onChange={(e) => setPref("iaTextoMaxChars", Number(e.target.value))} /></Field>
+            <Field label="Checagem de aterramento (OOVS)" htmlFor="ia-oovs" hint="confere o cartão contra as fontes; 1 chamada barata, só RELEVANTE">
+              <label className="flex h-9 items-center gap-2 text-sm"><input id="ia-oovs" type="checkbox" checked={draft.preferencias.iaAterramento} onChange={(e) => setPref("iaAterramento", e.target.checked)} /> ligada</label>
+            </Field>
             <Field label="Telegram imediato para RELEVANTE" htmlFor="ia-tg">
               <label className="flex h-9 items-center gap-2 text-sm"><input id="ia-tg" type="checkbox" checked={draft.preferencias.iaTelegramRelevante} onChange={(e) => setPref("iaTelegramRelevante", e.target.checked)} /> sim</label>
             </Field>

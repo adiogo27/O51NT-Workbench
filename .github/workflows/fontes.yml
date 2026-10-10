@@ -1,0 +1,42 @@
+# Validação ao vivo das fontes do Radar (manual). O runner do GitHub tem internet; o contêiner de desenvolvimento não.
+# Roda backend/scripts/validar_fontes.py: robots/HTTP/parser de cada fonte padrão e candidata, depois um ciclo real do
+# Radar com a query de teste do projeto ("manifestação OR manifestantes") e publica o relatório no resumo do job.
+name: Fontes do Radar (validação ao vivo)
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: Query do monitor de teste
+        default: manifestação OR manifestantes
+        required: false
+      so_padrao:
+        description: Validar só as fontes já semeadas
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0
+      - run: pip install -r requirements.txt
+      - name: Validar fontes e rodar um ciclo do Radar
+        working-directory: backend
+        run: python scripts/validar_fontes.py --query "${{ inputs.query }}" ${{ inputs.so_padrao && '--so-padrao' || '' }} --saida ../relatorio_fontes.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: relatorio-fontes
+          path: relatorio_fontes.json
+          retention-days: 30

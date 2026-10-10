@@ -1,0 +1,214 @@
+{
+  "_comentario": "Candidatas a fonte do Radar (nome, url, categoria, uf). A URL pode ser o feed ou a página inicial: scripts/validar_fontes.py descobre o RSS anunciado no HTML. Só o que passar na validação entra em app/seed.py.",
+  "candidatas": [
+    {
+      "nome": "Brasil de Fato",
+      "url": "https://www.brasildefato.com.br/",
+      "categoria": "independente"
+    },
+    {
+      "nome": "Congresso em Foco",
+      "url": "https://congressoemfoco.uol.com.br/feed/",
+      "categoria": "independente"
+    },
+    {
+      "nome": "Jornalistas Livres",
+      "url": "https://jornalistaslivres.org/feed/",
+      "categoria": "independente"
+    },
+    {
+      "nome": "Projeto Comprova",
+      "url": "https://projetocomprova.com.br/feed/",
+      "categoria": "checagem"
+    },
+    {
+      "nome": "Agência Câmara",
+      "url": "https://www.camara.leg.br/noticias/rss/dinamico/ULTIMAS_NOTICIAS",
+      "categoria": "oficial"
+    },
+    {
+      "nome": "Agência Senado",
+      "url": "https://www12.senado.leg.br/noticias/feed",
+      "categoria": "oficial"
+    },
+    {
+      "nome": "Agência Senado (alt)",
+      "url": "https://www12.senado.leg.br/noticias",
+      "categoria": "oficial"
+    },
+    {
+      "nome": "PRF — notícias (gov.br)",
+      "url": "https://www.gov.br/prf/pt-br/assuntos/noticias",
+      "categoria": "oficial"
+    },
+    {
+      "nome": "MJSP — notícias (gov.br)",
+      "url": "https://www.gov.br/mj/pt-br/assuntos/noticias/RSS",
+      "categoria": "oficial"
+    },
+    {
+      "nome": "STF — notícias",
+      "url": "https://portal.stf.jus.br/",
+      "categoria": "oficial"
+    },
+    {
+      "nome": "DW Brasil",
+      "url": "https://rss.dw.com/xml/rss-br-all",
+      "categoria": "internacional"
+    },
+    {
+      "nome": "O Globo",
+      "url": "https://oglobo.globo.com/rss.xml",
+      "categoria": "imprensa",
+      "uf": "RJ"
+    },
+    {
+      "nome": "Extra",
+      "url": "https://extra.globo.com/rss.xml",
+      "categoria": "imprensa",
+      "uf": "RJ"
+    },
+    {
+      "nome": "O Dia",
+      "url": "https://odia.ig.com.br/",
+      "categoria": "regional",
+      "uf": "RJ"
+    },
+    {
+      "nome": "BHAZ",
+      "url": "https://www.bhaz.com.br/feed/",
+      "categoria": "regional",
+      "uf": "MG"
+    },
+    {
+      "nome": "O Povo",
+      "url": "https://www.opovo.com.br/rss",
+      "categoria": "regional",
+      "uf": "CE"
+    },
+    {
+      "nome": "Jornal do Comércio",
+      "url": "https://www.jornaldocomercio.com/rss",
+      "categoria": "regional",
+      "uf": "RS"
+    },
+    {
+      "nome": "GZH",
+      "url": "https://gauchazh.clicrbs.com.br/",
+      "categoria": "regional",
+      "uf": "RS"
+    },
+    {
+      "nome": "Folha de Pernambuco",
+      "url": "https://www.folhape.com.br/",
+      "categoria": "regional",
+      "uf": "PE"
+    },
+    {
+      "nome": "Diário de Pernambuco",
+      "url": "https://www.diariodepernambuco.com.br/rss/",
+      "categoria": "regional",
+      "uf": "PE"
+    },
+    {
+      "nome": "Bahia Notícias",
+      "url": "https://www.bahianoticias.com.br/",
+      "categoria": "regional",
+      "uf": "BA"
+    },
+    {
+      "nome": "Gazeta do Povo",
+      "url": "https://www.gazetadopovo.com.br/feed/",
+      "categoria": "regional",
+      "uf": "PR"
+    },
+    {
+      "nome": "NSC Total",
+      "url": "https://www.nsctotal.com.br/rss",
+      "categoria": "regional",
+      "uf": "SC"
+    },
+    {
+      "nome": "Folha Vitória",
+      "url": "https://www.folhavitoria.com.br/feed",
+      "categoria": "regional",
+      "uf": "ES"
+    },
+    {
+      "nome": "O Popular",
+      "url": "https://opopular.com.br/rss",
+      "categoria": "regional",
+      "uf": "GO"
+    },
+    {
+      "nome": "Mais Goiás",
+      "url": "https://www.maisgoias.com.br/feed/",
+      "categoria": "regional",
+      "uf": "GO"
+    },
+    {
+      "nome": "MidiaNews",
+      "url": "https://www.midianews.com.br/rss",
+      "categoria": "regional",
+      "uf": "MT"
+    },
+    {
+      "nome": "O Liberal",
+      "url": "https://www.oliberal.com/",
+      "categoria": "regional",
+      "uf": "PA"
+    },
+    {
+      "nome": "D24AM",
+      "url": "https://d24am.com/feed/",
+      "categoria": "regional",
+      "uf": "AM"
+    },
+    {
+      "nome": "ClickPB",
+      "url": "https://www.clickpb.com.br/rss",
+      "categoria": "regional",
+      "uf": "PB"
+    },
+    {
+      "nome": "F5 News",
+      "url": "https://www.f5news.com.br/rss",
+      "categoria": "regional",
+      "uf": "SE"
+    },
+    {
+      "nome": "Rondoniaovivo",
+      "url": "https://www.rondoniaovivo.com/rss",
+      "categoria": "regional",
+      "uf": "RO"
+    },
+    {
+      "nome": "Rondoniagora",
+      "url": "https://rondoniagora.com/feed",
+      "categoria": "regional",
+      "uf": "RO"
+    },
+    {
+      "nome": "Jornal do Tocantins",
+      "url": "https://www.jornaldotocantins.com.br/rss",
+      "categoria": "regional",
+      "uf": "TO"
+    },
+    {
+      "nome": "Mastodon — #eleicoes2026 (ursal.zone)",
+      "url": "https://ursal.zone/tags/eleicoes2026.rss",
+      "categoria": "rede"
+    },
+    {
+      "nome": "Mastodon — #brasil (mastodon.social)",
+      "url": "https://mastodon.social/tags/brasil.rss",
+      "categoria": "rede"
+    },
+    {
+      "nome": "YouTube — canal (modelo: PRF)",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCk4OSsJxw0aRN4ywQ0F8oQA",
+      "categoria": "rede",
+      "respeitar_robots": false
+    }
+  ]
+}

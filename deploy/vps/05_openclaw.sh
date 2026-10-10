@@ -12,6 +12,7 @@ CHAT_ID="${O51NT_TELEGRAM_CHAT_ID:-371824016}"
 MODELO="${OPENCLAW_MODELO:-anthropic/claude-sonnet-5-5}"
 MODELO_RESERVA="${OPENCLAW_MODELO_RESERVA:-openai/gpt-5.5}"  # usado se a Anthropic falhar
 MODELO_TRIAGEM="${OPENCLAW_MODELO_TRIAGEM:-anthropic/claude-haiku-5-5}"  # sentinela: 1 chamada por item, barato
+MODELO_LEVE="${OPENCLAW_MODELO_LEVE:-anthropic/claude-haiku-5-5}"  # extrator/redator: JSON curto (US$ 0,10/0,50 por 1M tokens)
 log() { printf '[05] %s\n' "$*"; }
 [[ $EUID -eq 0 ]] || { echo "execute com sudo"; exit 1; }
 
@@ -272,6 +273,7 @@ cat >"$OC/openclaw.json" <<EOF
       redator: {
         name: "Redator O51NT",
         workspace: "${OC}/workspace-redator",
+        model: { primary: "${MODELO_LEVE}", fallbacks: ["${MODELO}", "${MODELO_RESERVA}"] },
         thinkingDefault: "off",
         skills: [],
         tools: { profile: "minimal", deny: ["exec", "browser", "web_fetch", "web_search"] },
@@ -287,6 +289,7 @@ cat >"$OC/openclaw.json" <<EOF
       extrator: {
         name: "Extrator O51NT",
         workspace: "${OC}/workspace-extrator",
+        model: { primary: "${MODELO_LEVE}", fallbacks: ["${MODELO}", "${MODELO_RESERVA}"] },
         thinkingDefault: "off",
         skills: ["o51nt-esquema"],
         tools: { profile: "minimal", deny: ["exec", "browser", "web_fetch", "web_search"] },
