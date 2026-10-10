@@ -109,7 +109,7 @@ async def main() -> int:
 
     db.init_db()
     scraper = get_scraper()
-    candidatas: list[dict[str, Any]] = [{"nome": n, "url": u, "categoria": c, "padrao": True, "respeitar_robots": u not in seed.FONTES_PADRAO_SEM_ROBOTS} for n, u, c, _a in seed.FONTES_PADRAO]
+    candidatas: list[dict[str, Any]] = [{"nome": n, "url": u, "categoria": c, "padrao": True, "respeitar_robots": u not in seed.FONTES_PADRAO_SEM_ROBOTS, "tipo": "pagina" if u in seed.FONTES_PADRAO_PAGINA else "feed"} for n, u, c, _a in seed.FONTES_PADRAO]
     if not args.so_padrao:
         candidatas += json.loads(Path(args.candidatas).read_text(encoding="utf-8"))["candidatas"]
 

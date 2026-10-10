@@ -207,14 +207,41 @@ FONTES_PADRAO: list[tuple[str, str, str, bool]] = [
     ("Marco Zero Conteúdo (PE)", "https://marcozero.org/feed/", "regional", True),
     ("ND Mais (SC)", "https://ndmais.com.br/feed/", "regional", True),
     ("ac24horas (AC)", "https://ac24horas.com/feed/", "regional", True),
+    # --- 2ª rodada (19:16 UTC): feeds descobertos na página inicial, feeds com robots.txt restritivo e páginas sem RSS ---
+    ("O Globo", "https://oglobo.globo.com/rss/oglobo", "imprensa", True),
+    ("Brasil de Fato", "https://www.brasildefato.com.br/feed/", "independente", True),
+    ("O Antagonista", "https://oantagonista.com.br/feed/", "independente", True),
+    ("Agência Senado", "https://www12.senado.leg.br/noticias/RSS", "oficial", True),
+    ("MJSP — notícias (gov.br)", "https://www.gov.br/mj/RSS", "oficial", True),
+    ("Reddit — r/brasil (novos)", "https://www.reddit.com/r/brasil/new/.rss", "rede", True),
+    ("Campo Grande News (MS)", "https://www.campograndenews.com.br/rss", "regional", True),
+    ("Bahia Notícias (BA)", "https://www.bahianoticias.com.br/principal/rss.xml", "regional", True),
+    ("Jornal do Comércio (RS)", "https://www.jornaldocomercio.com/_conteudo/home/rss.xml", "regional", True),
+    ("O Dia (RJ)", "https://odia.ig.com.br/_conteudo/ultimas-noticias/rss.xml", "regional", True),
+    ("Agência Câmara (página)", "https://www.camara.leg.br/noticias/", "oficial", True),
+    ("Correio Braziliense (DF, página)", "https://www.correiobraziliense.com.br/", "regional", True),
+    ("Correio do Povo (RS, página)", "https://www.correiodopovo.com.br/", "regional", True),
+    ("Diário do Nordeste (CE, página)", "https://diariodonordeste.verdesmares.com.br/", "regional", True),
+    ("O Povo (CE, página)", "https://www.opovo.com.br/", "regional", True),
+    ("Estado de Minas (MG, página)", "https://www.em.com.br/", "regional", True),
+    ("O Tempo (MG, página)", "https://www.otempo.com.br/", "regional", True),
+    ("Gazeta do Povo (PR, página)", "https://www.gazetadopovo.com.br/", "regional", True),
+    ("Gazeta Digital (MT, página)", "https://www.gazetadigital.com.br/", "regional", True),
+    ("Meio Norte (PI, página)", "https://www.meionorte.com/", "regional", True),
+    ("Tribuna Hoje (AL, página)", "https://tribunahoje.com/", "regional", True),
+    ("A Crítica (AM, página)", "https://www.acritica.com/", "regional", True),
+    ("Correio do Estado (MS, página)", "https://correiodoestado.com.br/", "regional", True),
+    ("R7 — notícias (página)", "https://noticias.r7.com/", "imprensa", True),
 ]
-# Feeds semeados com respeitar_robots=False (decisão do dono, 2026-10-10): o robots.txt do host não libera a coleta
-# automática, mas o feed existe para ser lido por máquina. Tudo o mais respeita o robots.txt.
-FONTES_PADRAO_SEM_ROBOTS: frozenset[str] = frozenset({u for _n, u, c, _a in FONTES_PADRAO if c == "busca"})
+# Semeadas com respeitar_robots=False (decisão do dono, 2026-10-10): o robots.txt do host não libera a coleta automática,
+# mas o feed existe para ser lido por máquina. Tudo o mais respeita o robots.txt.
+FONTES_PADRAO_SEM_ROBOTS: frozenset[str] = frozenset({u for _n, u, c, _a in FONTES_PADRAO if c == "busca"} | {"https://oglobo.globo.com/rss/oglobo", "https://oantagonista.com.br/feed/", "https://www.reddit.com/r/brasil/new/.rss"})
+# Sites sem RSS utilizável: o Radar extrai os links de matéria da página (tipo "pagina", verificados a cada 30 min).
+FONTES_PADRAO_PAGINA: frozenset[str] = frozenset({u for n, u, _c, _a in FONTES_PADRAO if "página)" in n})
 
 # Catálogo exibido na tela (as acima + modelos que dependem de dados do analista).
 CATALOGO_FONTES: list[dict] = [
-    *({"nome": n, "url": u, "categoria": c, "tipo": "feed", "descricao": "Feed público verificado."} for n, u, c, _a in FONTES_PADRAO),
+    *({"nome": n, "url": u, "categoria": c, "tipo": "pagina" if u in FONTES_PADRAO_PAGINA else "feed", "descricao": "Página de notícias sem RSS (links de matéria extraídos pelo Radar)." if u in FONTES_PADRAO_PAGINA else "Feed público validado ao vivo."} for n, u, c, _a in FONTES_PADRAO),
     {
         "nome": "Google Alertas (feed pessoal)",
         "url": "https://www.google.com/alerts",
@@ -266,7 +293,8 @@ def seed_fontes(session: Session) -> int:
     for nome, url, categoria, ativa in FONTES_PADRAO:
         if url in existentes:
             continue
-        session.add(Fonte(nome=nome, url=url, categoria=categoria, ativa=ativa, respeitar_robots=url not in FONTES_PADRAO_SEM_ROBOTS))
+        pagina = url in FONTES_PADRAO_PAGINA
+        session.add(Fonte(nome=nome, url=url, categoria=categoria, ativa=ativa, respeitar_robots=url not in FONTES_PADRAO_SEM_ROBOTS, tipo="pagina" if pagina else "feed", intervalo_min=30 if pagina else None))
         novos += 1
     session.commit()
     if novos:

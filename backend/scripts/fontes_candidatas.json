@@ -12,11 +12,6 @@
       "categoria": "independente"
     },
     {
-      "nome": "O Antagonista",
-      "url": "https://oantagonista.com.br/feed/",
-      "categoria": "independente"
-    },
-    {
       "nome": "Jornalistas Livres",
       "url": "https://jornalistaslivres.org/feed/",
       "categoria": "independente"
@@ -29,11 +24,6 @@
     {
       "nome": "Agência Câmara",
       "url": "https://www.camara.leg.br/noticias/rss/dinamico/ULTIMAS_NOTICIAS",
-      "categoria": "oficial"
-    },
-    {
-      "nome": "Agência Câmara (alt)",
-      "url": "https://www.camara.leg.br/noticias/",
       "categoria": "oficial"
     },
     {
@@ -67,11 +57,6 @@
       "categoria": "internacional"
     },
     {
-      "nome": "R7 — notícias",
-      "url": "https://noticias.r7.com/",
-      "categoria": "imprensa"
-    },
-    {
       "nome": "O Globo",
       "url": "https://oglobo.globo.com/rss.xml",
       "categoria": "imprensa",
@@ -90,38 +75,14 @@
       "uf": "RJ"
     },
     {
-      "nome": "O Tempo",
-      "url": "https://www.otempo.com.br/",
-      "categoria": "regional",
-      "uf": "MG"
-    },
-    {
       "nome": "BHAZ",
       "url": "https://www.bhaz.com.br/feed/",
       "categoria": "regional",
       "uf": "MG"
     },
     {
-      "nome": "Estado de Minas",
-      "url": "https://www.em.com.br/",
-      "categoria": "regional",
-      "uf": "MG"
-    },
-    {
-      "nome": "Correio Braziliense",
-      "url": "https://www.correiobraziliense.com.br/",
-      "categoria": "regional",
-      "uf": "DF"
-    },
-    {
       "nome": "O Povo",
       "url": "https://www.opovo.com.br/rss",
-      "categoria": "regional",
-      "uf": "CE"
-    },
-    {
-      "nome": "Diário do Nordeste",
-      "url": "https://diariodonordeste.verdesmares.com.br/",
       "categoria": "regional",
       "uf": "CE"
     },
@@ -134,12 +95,6 @@
     {
       "nome": "GZH",
       "url": "https://gauchazh.clicrbs.com.br/",
-      "categoria": "regional",
-      "uf": "RS"
-    },
-    {
-      "nome": "Correio do Povo",
-      "url": "https://www.correiodopovo.com.br/",
       "categoria": "regional",
       "uf": "RS"
     },
@@ -192,24 +147,6 @@
       "uf": "GO"
     },
     {
-      "nome": "Campo Grande News",
-      "url": "https://www.campograndenews.com.br/rss",
-      "categoria": "regional",
-      "uf": "MS"
-    },
-    {
-      "nome": "Correio do Estado",
-      "url": "https://correiodoestado.com.br/",
-      "categoria": "regional",
-      "uf": "MS"
-    },
-    {
-      "nome": "Gazeta Digital",
-      "url": "https://www.gazetadigital.com.br/",
-      "categoria": "regional",
-      "uf": "MT"
-    },
-    {
       "nome": "MidiaNews",
       "url": "https://www.midianews.com.br/rss",
       "categoria": "regional",
@@ -222,12 +159,6 @@
       "uf": "PA"
     },
     {
-      "nome": "A Crítica",
-      "url": "https://www.acritica.com/",
-      "categoria": "regional",
-      "uf": "AM"
-    },
-    {
       "nome": "D24AM",
       "url": "https://d24am.com/feed/",
       "categoria": "regional",
@@ -238,18 +169,6 @@
       "url": "https://www.clickpb.com.br/rss",
       "categoria": "regional",
       "uf": "PB"
-    },
-    {
-      "nome": "Meio Norte",
-      "url": "https://www.meionorte.com/",
-      "categoria": "regional",
-      "uf": "PI"
-    },
-    {
-      "nome": "Tribuna Hoje",
-      "url": "https://tribunahoje.com/",
-      "categoria": "regional",
-      "uf": "AL"
     },
     {
       "nome": "F5 News",
@@ -286,21 +205,10 @@
       "categoria": "rede"
     },
     {
-      "nome": "Google Notícias — busca 'manifestação' (modelo)",
-      "url": "https://news.google.com/rss/search?q=manifesta%C3%A7%C3%A3o%20OR%20manifestantes&hl=pt-BR&gl=BR&ceid=BR:pt-419",
-      "categoria": "busca",
-      "respeitar_robots": false
-    },
-    {
       "nome": "YouTube — canal (modelo: PRF)",
       "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCk4OSsJxw0aRN4ywQ0F8oQA",
       "categoria": "rede",
       "respeitar_robots": false
-    },
-    {
-      "nome": "Reddit — r/brasil (novos)",
-      "url": "https://www.reddit.com/r/brasil/new/.rss",
-      "categoria": "rede"
     }
   ]
 }
