@@ -1,0 +1,106 @@
+# CI do O51NT Workbench — espelha ./test.sh: pytest (paralelo + sequencial), Vitest, tsc e Playwright E2E.
+# Regra do projeto: tudo verde antes de qualquer merge/implantação; nunca remover um teste para passar.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  backend:
+    name: pytest (unit + integração)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Bibliotecas de sistema do OpenCV
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0
+      - name: Dependências Python
+        run: pip install -r requirements.txt
+      - name: pytest -n auto (paralelo)
+        run: pytest -n auto -q -p no:warnings
+      - name: pytest (sequencial)
+        run: pytest -q -p no:warnings
+
+  frontend:
+    name: tsc + Vitest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: typecheck (tsc)
+        run: npm run --silent typecheck
+      - name: Vitest (paridade queryOperators.ts ↔ operators.py)
+        run: npm run --silent test:unit
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Bibliotecas de sistema do OpenCV
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0
+      - name: Backend em .venv (o playwright.config.ts sobe .venv/bin/python)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Dependências do frontend
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Chromium do Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Build do frontend (backend/static)
+        working-directory: frontend
+        run: npm run --silent build
+      - name: Playwright E2E (backend isolado em :8059, banco temporário, sem rede)
+        working-directory: frontend
+        run: npm run --silent test:e2e
+      - name: Relatório do Playwright (só em falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
